@@ -1,0 +1,420 @@
+import { AnimatePresence, motion } from 'motion/react'
+import { useEffect, useRef, useState } from 'react'
+import { relTime, tap } from '../lib/device'
+import { usePhoto } from '../lib/photos'
+import { scaleLine } from '../lib/quantity'
+import { back, go } from '../lib/router'
+import { shareRecipe } from '../lib/share'
+import { dismissLearn, markSeen, sendToLearn, setKnown, toast, useApp } from '../lib/store'
+import type { Person, Recipe } from '../lib/types'
+import { Avatar, cssVar, dexNo, DishArt, fmtMinutes, Sheet, spring, Stepper, TypeBadge, useDexNumbers, usePeople } from './bits'
+import { Icon } from './Icon'
+
+export function RecipeDetail({ id, shared }: { id: string; shared: boolean }) {
+  const r = useApp((s) => s.recipes[id])
+  const nums = useDexNumbers()
+  const { people, me, byId } = usePeople()
+  const [scrolled, setScrolled] = useState(false)
+  const [sendOpen, setSendOpen] = useState(false)
+
+  useEffect(() => {
+    if (r) markSeen(id)
+  }, [id, r?.updatedAt])
+
+  if (!r) {
+    return (
+      <div className="screen" style={{ display: 'grid', placeItems: 'center' }}>
+        <div className="empty">
+          <div style={{ fontSize: 44 }}>🫥</div>
+          <h2 className="display">This dish is gone</h2>
+          <p>It was removed from your dex, maybe on the other phone.</p>
+          <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={back}>
+            Back to the dex
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const candidates = people.filter((p) => !r.knownBy.includes(p.id))
+  const sendTarget = candidates.find((p) => p.id !== me && !r.learning[p.id])
+
+  return (
+    <>
+      <motion.div className="detail-bg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.22 } }} />
+      <div className="detail-scroll" onScroll={(e) => setScrolled(e.currentTarget.scrollTop > e.currentTarget.clientWidth * 0.9)}>
+        <div className="hero-wrap">
+          <Hero r={r} shared={shared} />
+        </div>
+        <motion.div
+          className="sheet-panel"
+          initial={{ y: 80, opacity: 0 }}
+          animate={{ y: 0, opacity: 1, transition: { ...spring, delay: 0.04 } }}
+          exit={{ y: 80, opacity: 0, transition: { duration: 0.2 } }}
+        >
+          <Body r={r} no={nums.get(r.id) ?? 0} onSend={() => setSendOpen(true)} sendTarget={sendTarget} />
+        </motion.div>
+      </div>
+
+      <motion.div className="detail-bar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.12 } }}>
+        <AnimatePresence>{scrolled && <motion.div className="detail-bar-bg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />}</AnimatePresence>
+        <button className="icon-btn glass" onClick={back} aria-label="Back">
+          <Icon name="back" size={22} stroke={2.4} />
+        </button>
+        <div className="detail-bar-title" style={{ opacity: scrolled ? 1 : 0, transition: 'opacity .2s' }}>
+          {r.title}
+        </div>
+        <button className="icon-btn glass" onClick={() => void shareRecipe(r, people)} aria-label="Share recipe">
+          <Icon name="share" size={19} />
+        </button>
+        <button className="icon-btn glass" onClick={() => go(`/edit/${r.id}`)} aria-label="Edit recipe">
+          <Icon name="edit" size={19} />
+        </button>
+      </motion.div>
+
+      <SendSheet open={sendOpen} onClose={() => setSendOpen(false)} r={r} candidates={candidates} me={me} people={people} byId={byId} />
+    </>
+  )
+}
+
+function Hero({ r, shared }: { r: Recipe; shared: boolean }) {
+  const full = usePhoto(r.photo?.path)
+  const [loaded, setLoaded] = useState(false)
+  return (
+    <motion.div className="hero" layoutId={shared ? `media-${r.id}` : undefined} style={{ borderRadius: 0 }} transition={spring}>
+      {r.thumb ? <img src={r.thumb} alt="" /> : !r.photo && <DishArt recipe={r} />}
+      {full && (
+        <motion.img
+          className="hero-full"
+          src={full}
+          alt={`Photo of ${r.title}`}
+          onLoad={() => setLoaded(true)}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: loaded ? 1 : 0 }}
+          transition={{ duration: 0.35 }}
+        />
+      )}
+    </motion.div>
+  )
+}
+
+function Body({ r, no, onSend, sendTarget }: { r: Recipe; no: number; onSend: () => void; sendTarget?: Person }) {
+  const { people, me, byId } = usePeople()
+  const [serv, setServ] = useState(r.servings)
+  const [got, setGot] = useState<Set<number>>(() => new Set())
+  const [done, setDone] = useState<Set<number>>(() => new Set())
+  const [cook, setCook] = useState(false)
+  const [burst, setBurst] = useState(0)
+  const lock = useRef<{ release: () => Promise<void> } | null>(null)
+
+  useEffect(() => setServ(r.servings), [r.servings])
+
+  useEffect(() => {
+    if (!cook) return
+    let cancelled = false
+    ;(navigator as any).wakeLock
+      ?.request('screen')
+      .then((l: any) => {
+        if (cancelled) l.release()
+        else lock.current = l
+      })
+      .catch(() => {
+        setCook(false)
+        toast('This phone won’t let the screen stay on')
+      })
+    return () => {
+      cancelled = true
+      void lock.current?.release()
+      lock.current = null
+    }
+  }, [cook])
+
+  const factor = serv / r.servings
+  const learnReq = me ? r.learning[me] : undefined
+  const fromP = learnReq ? byId(learnReq.from) : undefined
+  const others = Object.entries(r.learning).filter(([pid]) => pid !== me)
+  const toggle = (set: Set<number>, i: number) => {
+    const n = new Set(set)
+    if (n.has(i)) n.delete(i)
+    else n.add(i)
+    return n
+  }
+  const creator = byId(r.createdBy)
+  const editor = byId(r.updatedBy)
+  const hasWakeLock = 'wakeLock' in navigator
+
+  return (
+    <>
+      <div className="detail-tags">
+        <span className="mono faint" style={{ fontSize: 13, fontWeight: 600, marginRight: 4 }}>
+          {dexNo(no)}
+        </span>
+        {r.types.map((t) => (
+          <TypeBadge key={t} id={t} />
+        ))}
+      </div>
+      <h1 className="detail-title display">{r.title}</h1>
+
+      <AnimatePresence>
+        {learnReq && me && (
+          <motion.div className="learn-card" style={cssVar({ '--c': fromP?.color ?? 'var(--accent)' })} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0, marginTop: 0, padding: 0 }}>
+            <div className="who">
+              <Avatar person={fromP} size={36} />
+              <div>
+                {fromP && fromP.id !== me ? `${fromP.name} wants you to learn this` : 'On your to-learn list'}
+                <div className="faint" style={{ fontSize: 13, fontWeight: 500 }}>
+                  Sent {relTime(learnReq.at)}
+                </div>
+              </div>
+            </div>
+            {learnReq.note && <q>{learnReq.note}</q>}
+            <div className="learn-actions">
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  tap(20)
+                  setBurst((b) => b + 1)
+                  void setKnown(r.id, me, true)
+                  toast('Added to your dishes 🎉')
+                }}
+              >
+                <Icon name="check" size={17} stroke={2.6} /> I can make it now
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => void dismissLearn(r.id, me)}>
+                Not now
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="section">
+        <div className="section-head">
+          <h3>Who can cook it</h3>
+        </div>
+        <div className="know-row" style={{ position: 'relative' }}>
+          {people.map((p) => {
+            const on = r.knownBy.includes(p.id)
+            return (
+              <button
+                key={p.id}
+                className="know-chip"
+                aria-pressed={on}
+                style={cssVar({ '--c': p.color })}
+                onClick={() => {
+                  tap(on ? 8 : 16)
+                  if (!on && p.id === me) setBurst((b) => b + 1)
+                  void setKnown(r.id, p.id, !on)
+                }}
+              >
+                <Avatar person={p} size={34} />
+                {p.name}
+                <span className="know-tick">
+                  <Icon name={on ? 'check' : 'plus'} size={13} stroke={3} />
+                </span>
+              </button>
+            )
+          })}
+          <Burst k={burst} />
+        </div>
+        {others.map(([pid, req]) => (
+          <div key={pid} className="hint">
+            📚 {byId(pid)?.name ?? 'Someone'} is learning this · sent {relTime(req.at)}
+          </div>
+        ))}
+      </div>
+
+      <div className="stats">
+        <div className="stat">
+          <div className="stat-label">Servings</div>
+          <div className="stat-value">
+            <Stepper value={serv} onChange={setServ} />
+          </div>
+        </div>
+        <div className="stat">
+          <div className="stat-label">Time</div>
+          <div className="stat-value">{fmtMinutes(r.minutes)}</div>
+        </div>
+        <div className="stat">
+          <div className="stat-label">Items</div>
+          <div className="stat-value">{r.ingredients.length}</div>
+        </div>
+      </div>
+
+      <div className="section">
+        <div className="section-head">
+          <h3>Ingredients</h3>
+          {factor !== 1 && (
+            <button className="link" style={{ fontSize: 14 }} onClick={() => setServ(r.servings)}>
+              Scaled for {serv} · reset
+            </button>
+          )}
+        </div>
+        {r.ingredients.length === 0 && <p className="faint">No ingredients logged yet.</p>}
+        {r.ingredients.map((line, i) => {
+          const { qty, rest } = scaleLine(line, factor)
+          return (
+            <button key={i} className="ing" role="checkbox" aria-checked={got.has(i)} onClick={() => { tap(); setGot(toggle(got, i)) }}>
+              <span className="check">
+                <Icon name="check" size={13} stroke={3.2} />
+              </span>
+              <span className="ing-text">
+                {qty && <b>{qty} </b>}
+                {rest}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="section">
+        <div className="section-head">
+          <h3>How to make it</h3>
+        </div>
+        {r.steps.length === 0 && <p className="faint">No steps written down yet — it lives in someone’s head.</p>}
+        {r.steps.map((s, i) => (
+          <button key={i} className="step" role="checkbox" aria-checked={done.has(i)} onClick={() => { tap(); setDone(toggle(done, i)) }}>
+            <span className="step-n">{i + 1}</span>
+            <span className="step-text">{s}</span>
+          </button>
+        ))}
+      </div>
+
+      {r.notes && (
+        <div className="section">
+          <div className="section-head">
+            <h3>Notes</h3>
+          </div>
+          <div className="notes">{r.notes}</div>
+        </div>
+      )}
+
+      <div className="action-row">
+        {sendTarget ? (
+          <button className="btn btn-primary" onClick={() => { tap(); onSend() }}>
+            <Icon name="send" size={19} /> Send to {sendTarget.name}
+          </button>
+        ) : (
+          <button className="btn btn-primary" onClick={() => { tap(); onSend() }}>
+            <Icon name="send" size={19} /> Send
+          </button>
+        )}
+        {hasWakeLock && (
+          <button className={`btn ${cook ? 'btn-soft' : 'btn-ghost'}`} aria-pressed={cook} onClick={() => { tap(); setCook(!cook) }}>
+            <Icon name="flame" size={19} /> {cook ? 'Screen on' : 'Cook mode'}
+          </button>
+        )}
+      </div>
+
+      <div className="foot-meta">
+        Logged by {creator?.name ?? 'someone'} · {new Date(r.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+        {r.updatedAt !== r.createdAt && (
+          <>
+            <br />
+            Updated {relTime(r.updatedAt)}
+            {editor ? ` by ${editor.name}` : ''}
+          </>
+        )}
+      </div>
+    </>
+  )
+}
+
+function SendSheet({
+  open,
+  onClose,
+  r,
+  candidates,
+  me,
+  people,
+  byId,
+}: {
+  open: boolean
+  onClose: () => void
+  r: Recipe
+  candidates: Person[]
+  me: string | null
+  people: Person[]
+  byId: (id: string) => Person | undefined
+}) {
+  const fallback = candidates.find((p) => p.id !== me) ?? candidates[0]
+  const [to, setTo] = useState<string | undefined>(fallback?.id)
+  const [note, setNote] = useState('')
+  useEffect(() => {
+    if (open) {
+      setTo(fallback?.id)
+      setNote('')
+    }
+  }, [open])
+  const target = to ? byId(to) : undefined
+  return (
+    <Sheet open={open} onClose={onClose} label="Send dish">
+      <h3>Send “{r.title}”</h3>
+      {candidates.length ? (
+        <>
+          <p>It lands on their “to learn” list, ready for when they want to cook it.</p>
+          <div className="who-grid" style={{ marginTop: 16 }}>
+            {candidates.map((p) => (
+              <button key={p.id} className="who-btn" aria-pressed={to === p.id} style={cssVar({ '--c': p.color })} onClick={() => { tap(); setTo(p.id) }}>
+                <Avatar person={p} size={34} />
+                {p.id === me ? 'Me' : p.name}
+                <span className="know-tick">
+                  <Icon name="check" size={13} stroke={3} />
+                </span>
+              </button>
+            ))}
+          </div>
+          <input className="input" style={{ marginTop: 12 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note (optional)" maxLength={140} />
+        </>
+      ) : (
+        <p>You both already know this one. You can still share it with someone else.</p>
+      )}
+      <div className="sheet-actions">
+        {candidates.length > 0 && (
+          <button
+            className="btn btn-primary btn-block"
+            disabled={!to}
+            onClick={() => {
+              if (!to) return
+              tap(16)
+              void sendToLearn(r.id, to, note.trim() || undefined)
+              toast(to === me ? 'Added to your to-learn list' : `Sent to ${target?.name ?? 'them'} 📬`)
+              onClose()
+            }}
+          >
+            <Icon name="send" size={19} /> {to === me ? 'Add to my to-learn list' : `Send to ${target?.name ?? '…'}`}
+          </button>
+        )}
+        <button className="btn btn-ghost btn-block" onClick={() => void shareRecipe(r, people)}>
+          <Icon name="share" size={19} /> Share outside the app
+        </button>
+      </div>
+    </Sheet>
+  )
+}
+
+const BURST = ['🎉', '✨', '🍽️', '⭐', '🔥', '💛']
+
+/** Small celebratory pop when someone "catches" a dish. */
+function Burst({ k }: { k: number }) {
+  if (!k) return null
+  return (
+    <span key={k} aria-hidden="true" style={{ position: 'absolute', left: 40, top: 20, pointerEvents: 'none' }}>
+      {Array.from({ length: 14 }, (_, i) => {
+        const a = (i / 14) * Math.PI * 2
+        const d = 60 + (i % 3) * 22
+        return (
+          <motion.span
+            key={i}
+            style={{ position: 'absolute', fontSize: 18 }}
+            initial={{ x: 0, y: 0, scale: 0.4, opacity: 1 }}
+            animate={{ x: Math.cos(a) * d, y: Math.sin(a) * d - 20, scale: 1, opacity: 0, rotate: (i % 2 ? 1 : -1) * 90 }}
+            transition={{ duration: 0.9, ease: [0.2, 0.7, 0.3, 1] }}
+          >
+            {BURST[i % BURST.length]}
+          </motion.span>
+        )
+      })}
+    </span>
+  )
+}
