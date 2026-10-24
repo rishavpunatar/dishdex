@@ -6,6 +6,17 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 
+// iOS keeps fixed elements behind the keyboard; lift bottom sheets by the keyboard's height.
+const vv = window.visualViewport
+if (vv) {
+  const update = () => {
+    const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+    document.documentElement.style.setProperty('--kb', `${kb > 80 ? kb : 0}px`)
+  }
+  vv.addEventListener('resize', update)
+  vv.addEventListener('scroll', update)
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

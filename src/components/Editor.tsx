@@ -181,7 +181,14 @@ export function Editor({ id }: { id?: string }) {
             </div>
           </div>
 
-          <span className="field-label">Type · pick up to two</span>
+          <span className="field-label">Ingredients</span>
+          <ListEditor items={ingredients} onChange={setIngredients} placeholder="e.g. 200g basmati rice" addLabel="Add ingredient" />
+          <div className="hint">Start lines with amounts (“2 cups…”) and they’ll scale with servings. Pasting a list splits it into lines.</div>
+
+          <span className="field-label">The rough how-to</span>
+          <ListEditor items={steps} onChange={setSteps} placeholder="What happens next…" addLabel="Add step" numbered />
+
+          <span className="field-label">Type <span className="faint" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>· up to two</span></span>
           <div className="type-grid">
             {DISH_TYPES.map((t) => {
               const on = types.includes(t.id)
@@ -203,13 +210,6 @@ export function Editor({ id }: { id?: string }) {
               )
             })}
           </div>
-
-          <span className="field-label">Ingredients</span>
-          <ListEditor items={ingredients} onChange={setIngredients} placeholder="e.g. 200g basmati rice" addLabel="Add ingredient" />
-          <div className="hint">Start lines with amounts (“2 cups…”) and they’ll scale with servings. Pasting a list splits it into lines.</div>
-
-          <span className="field-label">The rough how-to</span>
-          <ListEditor items={steps} onChange={setSteps} placeholder="What happens next…" addLabel="Add step" numbered />
 
           <span className="field-label">Notes</span>
           <textarea className="text-area" value={notes} onChange={(e) => { setNotes(e.target.value); autosize(e.currentTarget) }} placeholder="Tips, swaps, where it’s from…" />

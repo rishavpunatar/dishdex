@@ -10,7 +10,9 @@ export const isIOS = () =>
   /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 
 export const isStandalone = () =>
-  window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true
+  window.matchMedia('(display-mode: standalone)').matches ||
+  (navigator as any).standalone === true ||
+  (import.meta.env.DEV && new URLSearchParams(location.search).has('standalone'))
 
 /** Chrome's install prompt, captured for a custom "Install" button. */
 let deferred: any = null

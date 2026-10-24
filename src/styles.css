@@ -68,6 +68,10 @@ body {
   overscroll-behavior: none;
 }
 
+html {
+  touch-action: manipulation;
+}
+
 body {
   background: var(--bg);
   color: var(--ink);
@@ -99,6 +103,7 @@ textarea {
 
 img {
   display: block;
+  -webkit-touch-callout: none;
 }
 
 :focus-visible {
@@ -141,9 +146,9 @@ img {
 .layer-edge {
   position: absolute;
   left: 0;
-  top: 0;
+  top: calc(var(--top) + 64px);
   bottom: 0;
-  width: 22px;
+  width: 18px;
   z-index: 50;
   touch-action: none;
 }
@@ -181,6 +186,7 @@ img {
 /* ------------------------------------------------------------------ buttons */
 
 .btn {
+  text-decoration: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -869,7 +875,7 @@ img {
   }
 }
 
-/* sync pill */
+/* sync status */
 
 .sync-pill {
   display: inline-flex;
@@ -879,37 +885,28 @@ img {
   padding: 0 11px 0 9px;
   border-radius: 99px;
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--ink-2);
   background: var(--bg-2);
   box-shadow: inset 0 0 0 1px var(--line);
+  white-space: nowrap;
 }
 
 .sync-pill .dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #2fb36b;
-}
-
-.sync-pill[data-state='syncing'] .dot {
-  background: var(--ink-3);
-  animation: pulse 1s ease-in-out infinite;
-}
-
-.sync-pill[data-state='offline'] .dot {
   background: #e3a12f;
 }
 
-.sync-pill[data-state='error'] .dot,
-.sync-pill[data-state='auth'] .dot {
-  background: var(--accent);
+.sync-pill[data-tone='bad'] {
+  color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: none;
 }
 
-@keyframes pulse {
-  50% {
-    opacity: 0.3;
-  }
+.sync-pill[data-tone='bad'] .dot {
+  background: var(--accent);
 }
 
 /* banner */
@@ -1141,7 +1138,7 @@ img {
 
 .stats {
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 22px;
 }
@@ -1316,6 +1313,32 @@ img {
   display: flex;
   gap: 8px;
   margin-top: 14px;
+}
+
+.nudge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 10px 10px 14px;
+  border-radius: var(--r-md);
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 14.5px;
+  color: var(--ink-2);
+}
+
+.hero-add {
+  position: absolute;
+  z-index: 3;
+  right: 16px;
+  bottom: 44px;
+  color: #fff;
+  background: rgba(20, 12, 6, 0.38);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
 }
 
 .action-row {
@@ -1682,7 +1705,7 @@ img {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: var(--kb, 0px);
   z-index: 901;
   max-width: 560px;
   margin: 0 auto;
@@ -2183,4 +2206,201 @@ img {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ------------------------------------------------------------------ for you */
+
+.foryou {
+  margin-top: 18px;
+  overflow: hidden;
+}
+
+.foryou-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0 2px 8px;
+}
+
+.foryou-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 2px var(--gutter) 4px;
+  scroll-snap-type: x mandatory;
+  scroll-padding: 0 var(--gutter);
+  scrollbar-width: none;
+}
+
+.foryou-row::-webkit-scrollbar {
+  display: none;
+}
+
+.fy-card {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(78vw, 290px);
+  padding: 8px 12px 8px 8px;
+  border-radius: var(--r-md);
+  background: var(--card);
+  box-shadow: var(--shadow-1), inset 0 0 0 1px var(--line);
+  text-align: left;
+  scroll-snap-align: start;
+}
+
+.fy-thumb {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  flex: none;
+  border-radius: 13px;
+  overflow: hidden;
+  background: var(--bg-2);
+}
+
+.fy-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fy-thumb .art-letter {
+  font-size: 1.6em;
+}
+
+.fy-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fy-title {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fy-sub {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.banner-bad .banner-ic {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ------------------------------------------------------------------ connect / invite */
+
+.repo-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+
+.repo-chip span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-chip .link {
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+.qr-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 18px;
+  text-align: center;
+}
+
+.qr {
+  padding: 10px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: var(--shadow-2), inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+  width: min(208px, 60vw);
+  height: auto;
+}
+
+.qr-wrap p {
+  max-width: 320px;
+  margin-top: 14px !important;
+  font-size: 14.5px;
+}
+
+.install-steps {
+  list-style: none;
+  margin: 26px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.install-steps li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--r-lg);
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.install-steps .num {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 14px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.kbd {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 2px;
+  vertical-align: middle;
+  border-radius: 8px;
+  background: var(--bg-2);
+  color: #2f7fe8;
+}
+
+.install-arrow {
+  display: grid;
+  place-items: center;
+  margin: 10px 0 14px;
+  color: var(--accent);
 }

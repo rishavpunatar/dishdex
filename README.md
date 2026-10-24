@@ -16,19 +16,20 @@ profiles.json         the two people (name, emoji, colour)
 
 - Each phone keeps a full copy in IndexedDB, so the app opens instantly and works offline. Changes queue up and sync when back online.
 - Edits are stored as small operations and replayed onto the latest copy from GitHub, so both phones can edit the same dish without losing each other's changes. "Who can cook it" and "to learn" are merged as sets.
-- The app checks for changes when it opens, every 20 seconds while it's open, and on pull-to-refresh.
+- The app checks for changes when it opens, every 10 seconds while it's open (conditional requests, so idle checks are free against the rate limit), and on pull-to-refresh. A new phone fetches every dish in one GraphQL request.
 - Every change is a commit, so the repo history doubles as an undo log and backup.
 
 The access key is a fine-grained GitHub token limited to that one repo (Contents: read and write). It stays on the phones and is only ever sent to `api.github.com`. There are no analytics and no third-party scripts, and the fonts are bundled.
 
 ## Setup
 
-1. **Data repo.** Create a private repo, for example `you/dishdex-data`.
-2. **Access key.** On the connect screen, tap *Create a key on GitHub*. It opens GitHub's token form pre-filled; choose *Only select repositories*, pick the data repo, and set *Contents* to *Read and write*.
-3. **First phone.** Open the app, tap *Start our Dishdex*, then paste the repo name and key. Set up both people and install the app:
-   - **Android (Chrome):** tap *Install* in the app's banner, or use ⋮ → *Install app*.
-   - **iPhone (Safari):** tap Share → *Add to Home Screen*.
-4. **Second phone.** Go to Settings → *Invite …* and share the link. Opening it on the other phone connects it as the second person. On iPhone, add the app to the Home Screen afterwards; if the installed app asks, choose *I have an invite* and paste the message again (iOS keeps home-screen app storage separate from Safari's).
+1. **Data repo.** A private repo, for example `you/dishdex-data`. The repo variable `DISHDEX_DATA_REPO` pre-fills it in the app.
+2. **First device.** Open the app and tap *Start our Dishdex*, then *Open GitHub*. The token form opens pre-filled: Contents read and write, no expiry. Choose *Only select repositories* → the data repo, then generate the token and paste it. A computer is easiest for this step.
+3. **Every other phone.** Go to Settings → *Add a phone* and pick who it's for. Scan the QR code with that phone's camera, or send the link.
+   - **Android (Chrome):** it joins straight away; tap *Install*. The installed app shares Chrome's storage.
+   - **iPhone (Safari):** a guide shows how to *Add to Home Screen*. Home Screen apps on iOS start with empty storage. Safari copies its cookies across when the app is added (iOS 17.2+), so the invite rides along in a short-lived cookie and the installed app signs itself in. *Paste invite* is the fallback.
+
+If GitHub ever stops accepting a key, the app pauses sync, says so, and offers *Reconnect*. Paste a fresh invite or key there; nothing queued is lost.
 
 ## Development
 
@@ -39,7 +40,9 @@ npm test             # quantity scaling + merge logic
 npm run build
 ```
 
-In dev, the welcome screen has a **local demo repo** button that fakes GitHub in `localStorage`. Add `?device=a` / `?device=b` to the URL to get two independent "phones" in two tabs. Run `dishdexSeed()` in the console to add sample dishes.
+In dev, the welcome screen has a **local demo repo** button that fakes GitHub in `localStorage`. Add `?device=a` / `?device=b` to the URL to get two independent "phones" in two tabs, and `&standalone` to act as an installed app (for testing the iPhone invite handoff). Run `dishdexSeed()` in the console to add sample dishes.
+
+`DISHDEX_IT_REPO=owner/repo GH_TOKEN=… npx vitest run github.integration` runs the sync layer against a real repo.
 
 Pushing to `main` builds and deploys to GitHub Pages (`.github/workflows/deploy.yml`). The repo variable `DISHDEX_DATA_REPO` pre-fills the repo field on the connect screen.
 

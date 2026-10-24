@@ -35,7 +35,10 @@ describe.skipIf(!repo || !token)('GitHubRemote against a real repo', () => {
     const photoSha = await r.put(photo, bytesToB64(bytes), 'selftest: photo')
 
     const head = await r.head()
+    expect(await r.head()).toBe(head) // second call is a free 304
     const tree = await r.tree(head!)
+    const many = await r.readMany([[path, sha2]])
+    expect(many.get(sha2)).toBe('{"v":3}\n')
     expect(tree.get(path)).toBe(sha2)
     expect(tree.get(photo)).toBe(photoSha)
     expect(await r.readText(path, sha2)).toBe('{"v":3}\n')

@@ -10,6 +10,8 @@ import { Settings } from './components/Settings'
 import { prefs } from './lib/local'
 import { back, clearUrlHash, parseRoute, useStack, type Route } from './lib/router'
 import { boot, toast, useApp } from './lib/store'
+import { stashInvite } from './lib/handoff'
+import { isIOS, isStandalone } from './lib/device'
 
 const initialInvite = (() => {
   const m = /[#&]join=([^&]+)/.exec(location.hash)
@@ -21,7 +23,11 @@ export function App() {
   const stack = useStack()
 
   useEffect(() => {
-    if (initialInvite) clearUrlHash()
+    if (initialInvite) {
+      clearUrlHash()
+      // Leave the invite where the Home Screen app will find it after "Add to Home Screen".
+      if (isIOS() && !isStandalone()) void stashInvite(initialInvite)
+    }
     void boot().then(() => {
       if (initialInvite && useApp.getState().phase === 'ready') toast('This phone is already connected')
     })

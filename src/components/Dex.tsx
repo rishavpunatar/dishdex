@@ -4,12 +4,13 @@ import { canPromptInstall, copyText, isIOS, isStandalone, onInstallChange, promp
 import { prefs } from '../lib/local'
 import { usePhoto } from '../lib/photos'
 import { go } from '../lib/router'
-import { isNew, makeInvite, syncNow, toast, useApp } from '../lib/store'
+import { isNew, makeInvite, markAllSeen, syncNow, toast, useApp } from '../lib/store'
 import { DISH_TYPES, type Person, type Recipe } from '../lib/types'
-import { Avatar, cssVar, dexNo, DishArt, fmtMinutes, KnownDots, Logo, spring, SyncPill, TypeBadge, useDexNumbers, usePeople } from './bits'
+import { Avatar, cssVar, dexNo, DishArt, fmtMinutes, KnownDots, Logo, spring, SyncStatus, TypeBadge, useDexNumbers, usePeople } from './bits'
+import { ReconnectSheet } from './Connection'
 import { Icon, IosShareGlyph } from './Icon'
 
-type Who = 'all' | 'both' | 'learn' | string
+type Who = 'all' | 'both' | string
 type Sort = 'no' | 'az' | 'new'
 const SORT_LABEL: Record<Sort, string> = { no: 'Dex order', az: 'A–Z', new: 'Recently updated' }
 
@@ -25,6 +26,8 @@ export function Dex({ inert }: { inert: boolean }) {
   const [view, setViewState] = useState(prefs.view())
   const [stuck, setStuck] = useState(false)
   const [fabHidden, setFabHidden] = useState(false)
+  const [reconnectOpen, setReconnectOpen] = useState(false)
+  const syncState = useApp((s) => s.sync.state)
   const scroller = useRef<HTMLDivElement>(null)
   const toolbar = useRef<HTMLDivElement>(null)
   const lastY = useRef(0)
@@ -37,8 +40,7 @@ export function Dex({ inert }: { inert: boolean }) {
     const needle = q.trim().toLowerCase()
     const out = all.filter((r) => {
       if (who === 'both' && !people.every((p) => r.knownBy.includes(p.id))) return false
-      if (who === 'learn' && !(me && r.learning[me])) return false
-      if (who !== 'all' && who !== 'both' && who !== 'learn' && !r.knownBy.includes(who)) return false
+      if (who !== 'all' && who !== 'both' && !r.knownBy.includes(who)) return false
       if (type && !r.types.includes(type)) return false
       if (needle) {
         const hay = `${r.title}\n${r.ingredients.join('\n')}\n${r.types.join(' ')}`.toLowerCase()
@@ -90,13 +92,18 @@ export function Dex({ inert }: { inert: boolean }) {
     if (pull.get() > 66 && !refreshing) {
       tap(12)
       setRefreshing(true)
-      syncNow().finally(() => setTimeout(() => setRefreshing(false), 350))
+      const before = useApp.getState().recipes
+      syncNow().finally(() =>
+        setTimeout(() => {
+          setRefreshing(false)
+          const st = useApp.getState()
+          if (st.sync.state === 'synced') toast(st.recipes === before ? 'Up to date' : 'Updated')
+        }, 350),
+      )
     }
     pull.set(0)
   }
 
-  const filtersOn = who !== 'all' || !!type || !!q
-  const meLearn = me ? learnCount(me) : 0
 
   return (
     <div
@@ -125,7 +132,13 @@ export function Dex({ inert }: { inert: boolean }) {
               Dishdex
             </h1>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <SyncPill onClick={() => void syncNow()} />
+              <SyncStatus
+                onClick={() => {
+                  if (syncState === 'auth') setReconnectOpen(true)
+                  else if (syncState === 'error') go('/settings')
+                  else void syncNow()
+                }}
+              />
               <button className="icon-btn soft" onClick={() => go('/settings')} aria-label="Settings">
                 <Icon name="sliders" size={19} />
               </button>
@@ -137,6 +150,8 @@ export function Dex({ inert }: { inert: boolean }) {
               <DuoCard key={p.id} person={p} isMe={p.id === me} known={all.filter((r) => r.knownBy.includes(p.id)).length} total={all.length} learning={learnCount(p.id)} />
             ))}
           </div>
+          {syncState === 'auth' && <AuthBanner onFix={() => setReconnectOpen(true)} />}
+          <ForYou all={all} />
           <InstallBanner />
         </header>
 
@@ -169,7 +184,6 @@ export function Dex({ inert }: { inert: boolean }) {
               <Chip key={p.id} on={who === p.id} onClick={() => setWho(who === p.id ? 'all' : p.id)} label={p.name} n={all.filter((r) => r.knownBy.includes(p.id)).length} emoji={p.emoji} />
             ))}
             {people.length > 1 && <Chip on={who === 'both'} onClick={() => setWho(who === 'both' ? 'all' : 'both')} label="Both" n={all.filter((r) => people.every((p) => r.knownBy.includes(p.id))).length} />}
-            {meLearn > 0 && <Chip on={who === 'learn'} onClick={() => setWho(who === 'learn' ? 'all' : 'learn')} label="To learn" n={meLearn} emoji="📚" />}
             {presentTypes.length > 0 && <span className="chip-sep" />}
             {presentTypes.map((t) => (
               <Chip key={t.id} on={type === t.id} onClick={() => setType(type === t.id ? null : t.id)} label={t.label} emoji={t.emoji} />
@@ -215,7 +229,6 @@ export function Dex({ inert }: { inert: boolean }) {
             ))}
           </div>
         )}
-        {filtersOn && list.length > 0 && <div style={{ height: 1 }} />}
       </div>
 
       <AnimatePresence>
@@ -235,7 +248,67 @@ export function Dex({ inert }: { inert: boolean }) {
           </motion.button>
         )}
       </AnimatePresence>
+      <ReconnectSheet open={reconnectOpen} onClose={() => setReconnectOpen(false)} />
     </div>
+  )
+}
+
+function AuthBanner({ onFix }: { onFix: () => void }) {
+  return (
+    <div className="banner banner-bad">
+      <div className="banner-ic">
+        <Icon name="key" />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <b>Sync paused</b>
+        <span className="muted">GitHub stopped accepting this phone’s key. Your dishes are safe.</span>
+      </div>
+      <button className="btn btn-primary btn-sm" onClick={onFix}>
+        Fix
+      </button>
+    </div>
+  )
+}
+
+/** What changed since you last looked: dishes sent to you, and the other person's new or edited dishes. */
+function ForYou({ all }: { all: Recipe[] }) {
+  const seen = useApp((s) => s.seen)
+  const { me, byId } = usePeople()
+  if (!me) return null
+  const learn = all.filter((r) => r.learning[me]).sort((a, b) => b.learning[me].at.localeCompare(a.learning[me].at))
+  const fresh = all.filter((r) => isNew(r, me, seen) && !r.learning[me]).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  const items = [
+    ...learn.map((r) => ({ r, line: `📚 ${byId(r.learning[me].from)?.name ?? 'Someone'} wants you to learn this` })),
+    ...fresh.map((r) => ({ r, line: seen[r.id] ? `✏️ Updated by ${byId(r.updatedBy)?.name ?? 'someone'}` : `✨ New from ${byId(r.updatedBy)?.name ?? 'someone'}` })),
+  ].slice(0, 10)
+  return (
+    <AnimatePresence initial={false}>
+      {items.length > 0 && (
+        <motion.section className="foryou" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={spring}>
+          <div className="foryou-head">
+            <span className="eyebrow">For you</span>
+            {fresh.length > 0 && (
+              <button className="link" style={{ fontSize: 13 }} onClick={() => { tap(); markAllSeen() }}>
+                Mark seen
+              </button>
+            )}
+          </div>
+          <div className="foryou-row">
+            {items.map(({ r, line }) => (
+              <motion.button key={r.id} layout className="fy-card" whileTap={{ scale: 0.97 }} onClick={() => { tap(); go(`/r/${r.id}/fresh`) }}>
+                <span className="fy-thumb">
+                  <CardImage r={r} />
+                </span>
+                <span className="fy-text">
+                  <span className="fy-title">{r.title}</span>
+                  <span className="fy-sub">{line}</span>
+                </span>
+              </motion.button>
+            ))}
+          </div>
+        </motion.section>
+      )}
+    </AnimatePresence>
   )
 }
 
@@ -375,12 +448,12 @@ function InstallBanner() {
         <b>Put Dishdex on your home screen</b>
         {ios ? (
           <span className="muted">
-            Tap <IosShareGlyph /> then “Add to Home Screen”. If the app asks to connect, choose “I have an invite” and paste.{' '}
+            Tap <IosShareGlyph /> then “Add to Home Screen”. It opens already signed in.{' '}
             <button
               className="link"
               onClick={async () => {
                 const me = useApp.getState().me
-                if (me && (await copyText(makeInvite(me)))) toast('Invite copied')
+                if (me && (await copyText(makeInvite(me)))) toast('Invite copied — paste it if the app asks')
               }}
             >
               Copy invite

@@ -14,6 +14,8 @@ import {
   type RecipeOp,
 } from './ops'
 import { isAuthError, isConflict, jsonToB64, makeRemote, RemoteError, type Remote } from './remote'
+import { clearStashedInvite, readStashedInvite, stashInvite } from './handoff'
+import { isIOS, isStandalone } from './device'
 import type { Connection, Person, PersonId, Profiles, Recipe } from './types'
 
 export type Phase = 'boot' | 'welcome' | 'setup' | 'whoami' | 'ready'
@@ -33,6 +35,9 @@ interface AppState {
   sync: { state: SyncState; pending: number; message?: string; at?: number }
   seen: Record<string, string>
   toasts: Toast[]
+  joining: boolean
+  /** An invite we found but couldn't use yet (e.g. offline on first launch). */
+  pendingInvite: string | null
 }
 
 export const useApp = create<AppState>(() => ({
@@ -44,6 +49,8 @@ export const useApp = create<AppState>(() => ({
   sync: { state: 'idle', pending: 0 },
   seen: {},
   toasts: [],
+  joining: false,
+  pendingInvite: null,
 }))
 
 const S = () => useApp.getState()
@@ -81,7 +88,27 @@ export async function boot() {
   if (booted) return
   booted = true
   const conn = prefs.connection()
-  if (!conn) return setS({ phase: 'welcome' })
+  if (!conn) {
+    // iPhone: the Home Screen app starts with empty storage, so pick up the
+    // invite Safari left behind (cookies are copied when the app is added).
+    // (In iPhone Safari itself we leave it for the installed app and show the install guide.)
+    const code = isIOS() && !isStandalone() ? null : await readStashedInvite()
+    const inv = code ? parseInvite(code) : null
+    if (inv) {
+      setS({ phase: 'boot', joining: true })
+      try {
+        await joinWithInvite(inv)
+        await clearStashedInvite()
+        return
+      } catch (e) {
+        console.warn('[handoff]', e)
+        setS({ pendingInvite: code })
+      } finally {
+        setS({ joining: false })
+      }
+    }
+    return setS({ phase: 'welcome' })
+  }
   remote = makeRemote(conn)
   const [recipes, profiles, m, ob] = await Promise.all([db.allRecipes(), db.profiles(), db.meta(), db.outbox()])
   meta = m
@@ -95,6 +122,7 @@ export async function boot() {
     sync: { state: 'idle', pending: outbox.length },
   })
   startAutoSync()
+  keepHandoffFresh()
   if (profiles) {
     decidePhase()
     void syncNow()
@@ -116,7 +144,10 @@ export function parseRepo(input: string): string | null {
 export function describeError(e: unknown): string {
   if (e instanceof RemoteError) {
     if (e.status === 401) return 'GitHub didn’t accept that access key. Check it was copied in full.'
-    if (e.status === 403) return 'That access key can’t reach this repo. Make sure the repo is selected and Contents is “Read and write”.'
+    if (e.status === 403)
+      return e.rateLimited
+        ? 'GitHub is rate-limiting for a moment. Try again in a minute.'
+        : 'That key can’t write to the repo. On GitHub, make sure the repo is selected and Contents is set to “Read and write”.'
     if (e.status === 404) return 'Couldn’t find that repo. Check the name, and that the key has access to it.'
     return e.message
   }
@@ -131,19 +162,46 @@ export async function connect(repoInput: string, token: string, opts: { me?: Per
   const info = await makeRemote(draft).verify()
   const conn: Connection = { ...draft, repo: info.fullName, branch: info.branch }
 
-  await db.wipe()
-  meta = { head: null, shas: {} }
-  outbox = []
-  remote = makeRemote(conn)
-  setS({ conn, me: opts.me ?? null, recipes: {}, profiles: null, seen: {} })
-  await pull()
+  connecting = true
+  try {
+    await db.wipe()
+    meta = { head: null, shas: {} }
+    outbox = []
+    remote = makeRemote(conn)
+    setS({ conn, me: opts.me ?? null, recipes: {}, profiles: null, seen: {} })
+    await pull()
+  } finally {
+    connecting = false
+  }
   prefs.setConnection(conn)
   if (opts.me) prefs.setMe(opts.me)
   markAllSeen()
   setS({ sync: { state: 'synced', pending: 0, at: Date.now() } })
   startAutoSync()
   decidePhase()
+  keepHandoffFresh()
   return info
+}
+
+let connecting = false
+
+/** In iPhone Safari, keep a short-lived invite in a cookie so "Add to Home Screen" opens already signed in. */
+function keepHandoffFresh() {
+  const { me, conn } = S()
+  if (conn && me && isIOS() && !isStandalone()) void stashInvite(makeInvite(me))
+}
+
+/** Accepts a new invite (from the other phone) or a fresh access key. */
+export async function reconnect(text: string) {
+  const inv = parseInvite(text)
+  if (inv) {
+    const cur = S().conn
+    if (cur && inv.r.toLowerCase() === cur.repo.toLowerCase()) return updateToken(inv.t)
+    return joinWithInvite(inv)
+  }
+  const t = text.trim()
+  if (!/^(github_pat_|ghp_|gho_)[A-Za-z0-9_]+$/.test(t)) throw new Error('Paste an invite link or a GitHub access key.')
+  return updateToken(t)
 }
 
 /** Swap in a fresh access key without dropping anything waiting to sync. */
@@ -155,6 +213,7 @@ export async function updateToken(token: string) {
   remote = makeRemote(next)
   prefs.setConnection(next)
   setS({ conn: next })
+  keepHandoffFresh()
   await syncNow()
 }
 
@@ -190,6 +249,7 @@ export async function joinWithInvite(inv: Invite) {
 }
 
 export async function disconnect() {
+  await clearStashedInvite()
   await db.wipe()
   prefs.clearAll()
   remote = null
@@ -201,12 +261,18 @@ export async function disconnect() {
 
 /* ---------------------------------------------------------------- profiles */
 
+/**
+ * Written straight to GitHub rather than queued: it's the first write a new key
+ * makes, so a read-only key is caught here, on the setup screen, not later.
+ */
 export async function createProfiles(people: Person[], me: PersonId) {
   const data: Profiles = { v: 1, people }
-  await db.setProfiles(data)
+  const r = remote!
+  const cur = await r.get('profiles.json')
+  meta.shas['profiles.json'] = await r.put('profiles.json', jsonToB64(data), `${people.find((p) => p.id === me)?.name ?? 'Dishdex'}: set up Dishdex`, cur?.sha)
+  await Promise.all([db.setProfiles(data), db.setMeta(meta)])
   prefs.setMe(me)
   setS({ profiles: data, me })
-  await enqueue([{ opId: newOpId(), kind: 'profiles', data }])
   decidePhase()
 }
 
@@ -293,11 +359,16 @@ export async function saveRecipe(draft: Draft, original: Recipe | null): Promise
       set: { v: 1, id, ...fields, knownBy: draft.knownBy, learning: {}, createdAt: fields.updatedAt!, createdBy: S().me ?? '' },
     }
   } else {
+    // Only send what changed, so edits made on the other phone meanwhile survive the merge.
+    const changed: Partial<Recipe> = {}
+    for (const [k, v] of Object.entries(fields) as [keyof Recipe, unknown][]) {
+      if (k === 'updatedAt' || k === 'updatedBy' || JSON.stringify(v) !== JSON.stringify(original[k])) (changed as any)[k] = v
+    }
     op = {
       opId: newOpId(),
       kind: 'recipe',
       id,
-      set: fields,
+      set: changed,
       knownAdd: draft.knownBy.filter((p) => !original.knownBy.includes(p)),
       knownRemove: original.knownBy.filter((p) => !draft.knownBy.includes(p)),
     }
@@ -306,6 +377,20 @@ export async function saveRecipe(draft: Draft, original: Recipe | null): Promise
   markSeen(id)
   await enqueue([...ops, op, ...after])
   return id
+}
+
+/** Drop a photo onto an existing dish without touching anything else. */
+export async function setRecipePhoto(id: string, photo: DraftPhoto) {
+  const r = S().recipes[id]
+  if (!r) return
+  const path = newPhotoPath(id)
+  await db.putImage(path, photo.blob)
+  const op: RecipeOp = { opId: newOpId(), kind: 'recipe', id, set: { photo: { path, w: photo.w, h: photo.h }, thumb: photo.thumb, ...stamp() } }
+  await applyLocal(op, r)
+  markSeen(id)
+  const ops: Op[] = [{ opId: newOpId(), kind: 'photo', id, path }, op]
+  if (r.photo) ops.push({ opId: newOpId(), kind: 'deletePhoto', path: r.photo.path })
+  await enqueue(ops)
 }
 
 async function recipeOp(id: string, patch: Omit<RecipeOp, 'opId' | 'kind' | 'id'>) {
@@ -349,7 +434,7 @@ export function markSeen(id: string) {
   setS({ seen })
 }
 
-function markAllSeen() {
+export function markAllSeen() {
   const seen = Object.fromEntries(Object.values(S().recipes).map((r) => [r.id, r.updatedAt]))
   prefs.setSeen(seen)
   setS({ seen })
@@ -483,19 +568,13 @@ async function flush() {
           throw e
         }
         toast('One change couldn’t be saved and was skipped')
+        meta.head = null // re-check everything against GitHub on the next pull
       } else throw e
     }
     outbox.shift()
     await Promise.all([db.setOutbox(outbox), db.setMeta(meta)])
     setS((s) => ({ sync: { ...s.sync, pending: outbox.length } }))
   }
-}
-
-async function pool<T>(items: T[], n: number, fn: (t: T) => Promise<void>) {
-  const queue = [...items]
-  await Promise.all(Array.from({ length: Math.min(n, queue.length) }, async () => {
-    while (queue.length) await fn(queue.shift()!)
-  }))
 }
 
 async function pull() {
@@ -521,12 +600,18 @@ async function pull() {
       else if (path.startsWith('photos/')) meta.shas[path] = sha
     }
   }
-  await pool(fetches, 6, async ([path, sha]) => {
-    const text = await r.readText(path, sha)
-    if (path === 'profiles.json') profiles = JSON.parse(text) as Profiles
-    else changed.push(normalizeRecipe(JSON.parse(text)))
-    meta.shas[path] = sha
-  })
+  const texts = await r.readMany(fetches)
+  for (const [path, sha] of fetches) {
+    const text = texts.get(sha)
+    if (text === undefined) continue
+    try {
+      if (path === 'profiles.json') profiles = JSON.parse(text) as Profiles
+      else changed.push(normalizeRecipe(JSON.parse(text)))
+      meta.shas[path] = sha
+    } catch {
+      console.warn('[sync] skipping unreadable file', path)
+    }
+  }
 
   const removed: string[] = []
   for (const path of Object.keys(meta.shas)) {
@@ -557,7 +642,7 @@ let running: Promise<void> | null = null
 let rerun = false
 
 export function syncNow(): Promise<void> {
-  if (!remote) return Promise.resolve()
+  if (!remote || connecting) return Promise.resolve()
   if (running) {
     rerun = true
     return running
@@ -573,7 +658,7 @@ export function syncNow(): Promise<void> {
       } catch (e) {
         const state: SyncState = isAuthError(e)
           ? 'auth'
-          : e instanceof TypeError || !navigator.onLine
+          : e instanceof TypeError || !navigator.onLine || (e instanceof RemoteError && (e.rateLimited || e.status >= 500))
             ? 'offline'
             : 'error'
         setS((s) => ({ sync: { ...s.sync, state, message: describeError(e), pending: outbox.length } }))
@@ -603,7 +688,7 @@ function startAutoSync() {
   window.addEventListener('online', () => void syncNow())
   setInterval(() => {
     if (document.visibilityState === 'visible') void syncNow()
-  }, 20_000)
+  }, 10_000)
 }
 
 /* ---------------------------------------------------------------- backup */

@@ -5,7 +5,8 @@ import { usePhoto } from '../lib/photos'
 import { scaleLine } from '../lib/quantity'
 import { back, go } from '../lib/router'
 import { shareRecipe } from '../lib/share'
-import { dismissLearn, markSeen, sendToLearn, setKnown, toast, useApp } from '../lib/store'
+import { dismissLearn, markSeen, sendToLearn, setKnown, setRecipePhoto, toast, useApp } from '../lib/store'
+import { processPhoto } from '../lib/image'
 import type { Person, Recipe } from '../lib/types'
 import { Avatar, cssVar, dexNo, DishArt, fmtMinutes, Sheet, spring, Stepper, TypeBadge, useDexNumbers, usePeople } from './bits'
 import { Icon } from './Icon'
@@ -37,7 +38,6 @@ export function RecipeDetail({ id, shared }: { id: string; shared: boolean }) {
   }
 
   const candidates = people.filter((p) => !r.knownBy.includes(p.id))
-  const sendTarget = candidates.find((p) => p.id !== me && !r.learning[p.id])
 
   return (
     <>
@@ -52,7 +52,7 @@ export function RecipeDetail({ id, shared }: { id: string; shared: boolean }) {
           animate={{ y: 0, opacity: 1, transition: { ...spring, delay: 0.04 } }}
           exit={{ y: 80, opacity: 0, transition: { duration: 0.2 } }}
         >
-          <Body r={r} no={nums.get(r.id) ?? 0} onSend={() => setSendOpen(true)} sendTarget={sendTarget} />
+          <Body r={r} no={nums.get(r.id) ?? 0} onSend={() => setSendOpen(true)} />
         </motion.div>
       </div>
 
@@ -80,7 +80,38 @@ export function RecipeDetail({ id, shared }: { id: string; shared: boolean }) {
 function Hero({ r, shared }: { r: Recipe; shared: boolean }) {
   const full = usePhoto(r.photo?.path)
   const [loaded, setLoaded] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const file = useRef<HTMLInputElement>(null)
+  const pick = async (f?: File) => {
+    if (!f) return
+    setBusy(true)
+    try {
+      await setRecipePhoto(r.id, await processPhoto(f))
+      toast('Photo added 📸')
+    } catch (e) {
+      toast((e as Error).message)
+    } finally {
+      setBusy(false)
+      if (file.current) file.current.value = ''
+    }
+  }
   return (
+    <>
+    {!r.photo && (
+      <>
+        <input ref={file} type="file" accept="image/*" hidden onChange={(e) => void pick(e.target.files?.[0])} />
+        <motion.button
+          className="hero-add btn btn-sm"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0, transition: { delay: 0.25 } }}
+          exit={{ opacity: 0 }}
+          onClick={() => { tap(); file.current?.click() }}
+          disabled={busy}
+        >
+          <Icon name="camera" size={18} /> {busy ? 'Adding…' : 'Add a photo'}
+        </motion.button>
+      </>
+    )}
     <motion.div className="hero" layoutId={shared ? `media-${r.id}` : undefined} style={{ borderRadius: 0 }} transition={spring}>
       {r.thumb ? <img src={r.thumb} alt="" /> : !r.photo && <DishArt recipe={r} />}
       {full && (
@@ -95,10 +126,11 @@ function Hero({ r, shared }: { r: Recipe; shared: boolean }) {
         />
       )}
     </motion.div>
+    </>
   )
 }
 
-function Body({ r, no, onSend, sendTarget }: { r: Recipe; no: number; onSend: () => void; sendTarget?: Person }) {
+function Body({ r, no, onSend }: { r: Recipe; no: number; onSend: () => void }) {
   const { people, me, byId } = usePeople()
   const [serv, setServ] = useState(r.servings)
   const [got, setGot] = useState<Set<number>>(() => new Set())
@@ -222,6 +254,35 @@ function Body({ r, no, onSend, sendTarget }: { r: Recipe; no: number; onSend: ()
             📚 {byId(pid)?.name ?? 'Someone'} is learning this · sent {relTime(req.at)}
           </div>
         ))}
+        {(() => {
+          const teach = people.find((p) => p.id !== me && !r.knownBy.includes(p.id) && !r.learning[p.id])
+          if (teach && me && r.knownBy.includes(me))
+            return (
+              <div className="nudge">
+                <span>{teach.name} can’t make this yet.</span>
+                <button className="btn btn-soft btn-sm" onClick={() => { tap(); onSend() }}>
+                  <Icon name="send" size={16} /> Send to {teach.name}
+                </button>
+              </div>
+            )
+          if (me && !r.knownBy.includes(me) && !r.learning[me])
+            return (
+              <div className="nudge">
+                <span>Want to learn this one?</span>
+                <button
+                  className="btn btn-soft btn-sm"
+                  onClick={() => {
+                    tap()
+                    void sendToLearn(r.id, me)
+                    toast('On your to-learn list 📚')
+                  }}
+                >
+                  <Icon name="book" size={16} /> Add to my list
+                </button>
+              </div>
+            )
+          return null
+        })()}
       </div>
 
       <div className="stats">
@@ -234,10 +295,6 @@ function Body({ r, no, onSend, sendTarget }: { r: Recipe; no: number; onSend: ()
         <div className="stat">
           <div className="stat-label">Time</div>
           <div className="stat-value">{fmtMinutes(r.minutes)}</div>
-        </div>
-        <div className="stat">
-          <div className="stat-label">Items</div>
-          <div className="stat-value">{r.ingredients.length}</div>
         </div>
       </div>
 
@@ -290,18 +347,12 @@ function Body({ r, no, onSend, sendTarget }: { r: Recipe; no: number; onSend: ()
       )}
 
       <div className="action-row">
-        {sendTarget ? (
-          <button className="btn btn-primary" onClick={() => { tap(); onSend() }}>
-            <Icon name="send" size={19} /> Send to {sendTarget.name}
-          </button>
-        ) : (
-          <button className="btn btn-primary" onClick={() => { tap(); onSend() }}>
-            <Icon name="send" size={19} /> Send
-          </button>
-        )}
+        <button className="btn btn-ghost" onClick={() => { tap(); void shareRecipe(r, people) }}>
+          <Icon name="share" size={19} /> Share
+        </button>
         {hasWakeLock && (
           <button className={`btn ${cook ? 'btn-soft' : 'btn-ghost'}`} aria-pressed={cook} onClick={() => { tap(); setCook(!cook) }}>
-            <Icon name="flame" size={19} /> {cook ? 'Screen on' : 'Cook mode'}
+            <Icon name="flame" size={19} /> {cook ? 'Screen stays on' : 'Cook mode'}
           </button>
         )}
       </div>

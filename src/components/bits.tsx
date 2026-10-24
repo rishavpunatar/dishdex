@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useMemo, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { tap } from '../lib/device'
 import { useApp } from '../lib/store'
 import { typeById, type Person, type PersonId, type Recipe } from '../lib/types'
@@ -152,27 +152,45 @@ export function Toasts() {
   )
 }
 
-export function SyncPill({ onClick }: { onClick?: () => void }) {
+/**
+ * Quiet unless there's something to know: a slow sync, changes waiting,
+ * offline, or a key GitHub no longer accepts.
+ */
+export function SyncStatus({ onClick }: { onClick: () => void }) {
   const sync = useApp((s) => s.sync)
-  const label =
-    sync.state === 'syncing'
-      ? 'Syncing'
-      : sync.state === 'offline'
-        ? sync.pending
-          ? `Offline · ${sync.pending}`
-          : 'Offline'
-        : sync.state === 'auth'
-          ? 'Key expired'
-          : sync.state === 'error'
-            ? 'Sync issue'
-            : sync.pending
-              ? `${sync.pending} waiting`
-              : 'Synced'
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    if (sync.state !== 'syncing') return setSlow(false)
+    const t = setTimeout(() => setSlow(true), 900)
+    return () => clearTimeout(t)
+  }, [sync.state])
+
+  let view: { label: string; tone: 'busy' | 'warn' | 'bad' } | null = null
+  if (sync.state === 'auth') view = { label: 'Reconnect', tone: 'bad' }
+  else if (sync.state === 'offline') view = { label: sync.pending ? `Offline · ${sync.pending} to sync` : 'Offline', tone: 'warn' }
+  else if (sync.state === 'error') view = { label: 'Sync issue', tone: 'bad' }
+  else if (sync.state === 'syncing' && slow) view = { label: 'Syncing', tone: 'busy' }
+  else if (sync.pending) view = { label: `${sync.pending} to sync`, tone: 'warn' }
+
   return (
-    <button className="sync-pill" data-state={sync.state} onClick={onClick} aria-label={`Sync status: ${label}`}>
-      <span className="dot" />
-      {label}
-    </button>
+    <AnimatePresence initial={false}>
+      {view && (
+        <motion.button
+          key="sync"
+          className="sync-pill"
+          data-tone={view.tone}
+          onClick={onClick}
+          initial={{ opacity: 0, scale: 0.85 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.85 }}
+          transition={spring}
+          aria-live="polite"
+        >
+          {view.tone === 'busy' ? <Icon name="sync" size={13} stroke={2.6} className="spin" /> : <span className="dot" />}
+          {view.label}
+        </motion.button>
+      )}
+    </AnimatePresence>
   )
 }
 
