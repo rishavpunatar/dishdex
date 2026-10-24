@@ -4,8 +4,9 @@ import { describe, expect, it } from 'vitest'
 import { textToB64, bytesToB64 } from '../lib/b64'
 import { GitHubRemote, isConflict } from '../lib/remote'
 
-const repo = process.env.DISHDEX_IT_REPO
-const token = process.env.GH_TOKEN
+const env: Record<string, string | undefined> = (globalThis as any).process?.env ?? {}
+const repo = env.DISHDEX_IT_REPO
+const token = env.GH_TOKEN
 
 describe.skipIf(!repo || !token)('GitHubRemote against a real repo', () => {
   it('round-trips files, detects stale writes, and cleans up', async () => {

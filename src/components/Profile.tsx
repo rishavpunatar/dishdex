@@ -47,7 +47,7 @@ export function Profile({ id }: { id: string }) {
       </div>
 
       <div className="prof-head" style={cssVar({ '--c': person.color })}>
-        <motion.div className="ring" style={cssVar({ '--c': person.color, '--p': pct })} initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={spring}>
+        <motion.div className="ring" style={cssVar({ '--c': person.color, '--p': pct })} initial={{ scale: 0.85 }} animate={{ scale: 1 }} transition={spring}>
           <div className="ring-inner">
             <Avatar person={person} size={84} />
           </div>

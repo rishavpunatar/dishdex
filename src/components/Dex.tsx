@@ -1,10 +1,10 @@
 import { AnimatePresence, motion, useMotionValue, useTransform } from 'motion/react'
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { canPromptInstall, isIOS, isStandalone, onInstallChange, promptInstall, tap } from '../lib/device'
+import { canPromptInstall, copyText, isIOS, isStandalone, onInstallChange, promptInstall, tap } from '../lib/device'
 import { prefs } from '../lib/local'
 import { usePhoto } from '../lib/photos'
 import { go } from '../lib/router'
-import { isNew, syncNow, useApp } from '../lib/store'
+import { isNew, makeInvite, syncNow, toast, useApp } from '../lib/store'
 import { DISH_TYPES, type Person, type Recipe } from '../lib/types'
 import { Avatar, cssVar, dexNo, DishArt, fmtMinutes, KnownDots, Logo, spring, SyncPill, TypeBadge, useDexNumbers, usePeople } from './bits'
 import { Icon, IosShareGlyph } from './Icon'
@@ -375,7 +375,16 @@ function InstallBanner() {
         <b>Put Dishdex on your home screen</b>
         {ios ? (
           <span className="muted">
-            Tap <IosShareGlyph /> then “Add to Home Screen”.
+            Tap <IosShareGlyph /> then “Add to Home Screen”. If the app asks to connect, choose “I have an invite” and paste.{' '}
+            <button
+              className="link"
+              onClick={async () => {
+                const me = useApp.getState().me
+                if (me && (await copyText(makeInvite(me)))) toast('Invite copied')
+              }}
+            >
+              Copy invite
+            </button>
           </span>
         ) : (
           <span className="muted">It installs like a normal app.</span>
