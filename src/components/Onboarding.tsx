@@ -115,7 +115,7 @@ function Fan() {
           }}
         >
           <DishArt recipe={c} />
-          <span className="dexno">#{String(c.n).padStart(3, '0')}</span>
+          <span className="dexno">Nº {String(c.n).padStart(3, '0')}</span>
         </motion.div>
       ))}
     </div>
@@ -129,11 +129,13 @@ function Welcome({ onStart, onJoin }: { onStart: () => void; onJoin: () => void 
     <motion.div className="ob" {...fade}>
       <div className="ob-hero">
         <Fan />
-        <motion.h1 className="display" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.25 }}>
-          Dishdex
+        <motion.h1 className="display wordmark" style={{ fontSize: 'inherit' }} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.25 }}>
+          <span>
+            Dish<em>dex</em>
+          </span>
         </motion.h1>
         <motion.p className="ob-lede" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.32 }}>
-          Every dish the two of you can cook, in one shared dex. Snap it, jot the rough recipe, tag who knows it.
+          Every dish the two of you can cook, in one shared dex. Snap it, jot the rough recipe, tag who knows it — and collect a medal every ten.
         </motion.p>
       </div>
       <motion.div className="ob-actions" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.4 }}>
@@ -390,8 +392,8 @@ function InstallGuide({ code, onUseHere }: { code: string; onUseHere: () => void
 }
 
 function Setup() {
-  const [a, setA] = useState<Person>({ id: 'p1', name: '', emoji: '🧑‍🍳', color: '#E4482F' })
-  const [b, setB] = useState<Person>({ id: 'p2', name: '', emoji: '🦊', color: '#7357F6' })
+  const [a, setA] = useState<Person>({ id: 'p1', name: '', emoji: '', color: '#7D2E36' })
+  const [b, setB] = useState<Person>({ id: 'p2', name: '', emoji: '', color: '#2E4A6B' })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const ok = a.name.trim() && b.name.trim()

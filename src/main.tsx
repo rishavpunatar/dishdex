@@ -1,6 +1,6 @@
-import '@fontsource-variable/bricolage-grotesque'
+import '@fontsource-variable/fraunces/opsz.css'
+import '@fontsource-variable/fraunces/opsz-italic.css'
 import '@fontsource-variable/inter'
-import '@fontsource-variable/jetbrains-mono'
 import './styles.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -40,5 +40,22 @@ if (import.meta.env.PROD) {
 }
 
 if (import.meta.env.DEV) {
-  ;(window as any).dishdexSeed = () => import('./lib/demo').then((m) => m.seedDemo())
+  // ?demo=N[&collected=M] spins up a seeded demo dex — for screenshots and quick checks.
+  const qs = new URLSearchParams(location.search)
+  const n = Number(qs.get('demo'))
+  if (n) {
+    setTimeout(async () => {
+      const st = await import('./lib/store')
+      const { prefs } = await import('./lib/local')
+      if (qs.has('collected')) {
+        prefs.setCollected(Number(qs.get('collected')))
+        st.useApp.setState({ collected: Number(qs.get('collected')) })
+      }
+      if (!st.useApp.getState().conn) {
+        await st.connect('demo/local', 'demo')
+        await (await import('./lib/demo')).seedDemo(Math.max(0, n - 6))
+      }
+    }, 300)
+  }
+  ;(window as any).dishdexSeed = (extra = 0) => import('./lib/demo').then((m) => m.seedDemo(extra))
 }

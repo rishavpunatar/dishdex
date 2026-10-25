@@ -1,6 +1,8 @@
 # Dishdex
 
-A shared "Pokédex" of every dish two people know how to cook. Log a dish with a photo, servings, ingredients and a rough method; tag who can make it; send it to your partner's "to learn" list. Both phones see the same dex.
+A shared "Pokédex" of every dish two people know how to cook. Log a dish with a photo, servings, hot or cold, ingredients and a rough method, and tag who can make it. Both phones see the same dex.
+
+Every ten dishes unlocks a medal and a new tier — Stone → Bronze (10) → Silver (20) → Gold (30) → Platinum (40) → Diamond (50) — collected with a little ceremony on each phone.
 
 It's an installable web app (PWA). One codebase runs on Android and iPhone and installs to the home screen like a normal app.
 
@@ -15,7 +17,7 @@ profiles.json         the two people (name, emoji, colour)
 ```
 
 - Each phone keeps a full copy in IndexedDB, so the app opens instantly and works offline. Changes queue up and sync when back online.
-- Edits are stored as small operations and replayed onto the latest copy from GitHub, so both phones can edit the same dish without losing each other's changes. "Who can cook it" and "to learn" are merged as sets.
+- Edits are stored as small operations and replayed onto the latest copy from GitHub, so both phones can edit the same dish without losing each other's changes. "Who can cook it" is merged as a set.
 - The app checks for changes when it opens, every 10 seconds while it's open (conditional requests, so idle checks are free against the rate limit), and on pull-to-refresh. A new phone fetches every dish in one GraphQL request.
 - Every change is a commit, so the repo history doubles as an undo log and backup.
 
@@ -40,7 +42,7 @@ npm test             # quantity scaling + merge logic
 npm run build
 ```
 
-In dev, the welcome screen has a **local demo repo** button that fakes GitHub in `localStorage`. Add `?device=a` / `?device=b` to the URL to get two independent "phones" in two tabs, and `&standalone` to act as an installed app (for testing the iPhone invite handoff). Run `dishdexSeed()` in the console to add sample dishes.
+In dev, the welcome screen has a **local demo repo** button that fakes GitHub in `localStorage`. Add `?device=a` / `?device=b` to the URL to get two independent "phones" in two tabs, and `&standalone` to act as an installed app (for testing the iPhone invite handoff). Run `dishdexSeed()` in the console to add sample dishes, or open `?device=x&demo=23` for a pre-seeded dex (`&collected=20` skips the medal ceremonies).
 
 `DISHDEX_IT_REPO=owner/repo GH_TOKEN=… npx vitest run github.integration` runs the sync layer against a real repo.
 
@@ -49,7 +51,7 @@ Pushing to `main` builds and deploys to GitHub Pages (`.github/workflows/deploy.
 ## Where it could go next
 
 - **App-store builds.** Wrap the same code with Capacitor for a real Android APK or Play listing. iOS needs an Apple Developer account ($99/yr) for TestFlight or the App Store.
-- **Push notifications** when a dish is sent to you. Web Push works in installed PWAs on iOS 16.4+ and Android, but it needs a small relay (for example a Cloudflare Worker).
+- **Push notifications** when the other person logs a dish. Web Push works in installed PWAs on iOS 16.4+ and Android, but it needs a small relay (for example a Cloudflare Worker).
 - **"Import from a link":** paste a recipe URL and pre-fill the rough recipe.
 - **Shopping list:** tick dishes for the week and merge their ingredients.
 - **More than two people:** the data model already supports n people; only the UI assumes a duo.

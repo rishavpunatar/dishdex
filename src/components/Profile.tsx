@@ -7,7 +7,7 @@ import { Avatar, cssVar, spring, useDexNumbers, usePeople } from './bits'
 import { RecipeRow } from './Dex'
 import { Icon } from './Icon'
 
-type Tab = 'knows' | 'learn' | 'only'
+type Tab = 'knows' | 'only'
 
 export function Profile({ id }: { id: string }) {
   const recipes = useApp((s) => s.recipes)
@@ -20,16 +20,14 @@ export function Profile({ id }: { id: string }) {
   if (!person) return null
 
   const knows = all.filter((r) => r.knownBy.includes(id))
-  const learn = all.filter((r) => r.learning[id])
   const only = knows.filter((r) => r.knownBy.length === 1)
   const isMe = id === me
   const other = people.find((p) => p.id !== id)
-  const list = tab === 'knows' ? knows : tab === 'learn' ? learn : only
+  const list = tab === 'knows' ? knows : only
   const pct = all.length ? knows.length / all.length : 0
 
   const emptyText: Record<Tab, string> = {
     knows: isMe ? 'Nothing tagged to you yet. Open a dish and tap your name under “Who can cook it”.' : `Nothing tagged to ${person.name} yet.`,
-    learn: isMe ? 'Nothing waiting. When a dish is sent to you, it shows up here.' : `Nothing on ${person.name}’s list. Open a dish and tap “Send to ${person.name}”.`,
     only: other ? `No dishes only ${isMe ? 'you know' : `${person.name} knows`}. Everything is shared with ${isMe ? other.name : 'you'}.` : 'Nothing here yet.',
   }
 
@@ -64,7 +62,6 @@ export function Profile({ id }: { id: string }) {
           {(
             [
               ['knows', 'Can cook', knows.length],
-              ['learn', 'To learn', learn.length],
               ['only', 'Signature', only.length],
             ] as const
           ).map(([k, label, n]) => (
@@ -79,7 +76,7 @@ export function Profile({ id }: { id: string }) {
         </div>
         {tab === 'only' && list.length > 0 && (
           <p className="faint" style={{ fontSize: 13.5, margin: '4px 2px 6px' }}>
-            Only {isMe ? 'you' : person.name} can make these{other ? ` — good ones to send to ${isMe ? other.name : 'yourself'}` : ''}.
+            Only {isMe ? 'you' : person.name} can make these{other ? ` — ${isMe ? `teach ${other.name}` : 'ask for a lesson'}` : ''}.
           </p>
         )}
         {list.length === 0 ? (

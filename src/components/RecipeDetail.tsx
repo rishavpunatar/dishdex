@@ -5,18 +5,17 @@ import { usePhoto } from '../lib/photos'
 import { scaleLine } from '../lib/quantity'
 import { back, go } from '../lib/router'
 import { shareRecipe } from '../lib/share'
-import { dismissLearn, markSeen, sendToLearn, setKnown, setRecipePhoto, toast, useApp } from '../lib/store'
+import { markSeen, setKnown, setRecipePhoto, toast, useApp } from '../lib/store'
 import { processPhoto } from '../lib/image'
-import type { Person, Recipe } from '../lib/types'
-import { Avatar, cssVar, dexNo, DishArt, fmtMinutes, Sheet, spring, Stepper, TypeBadge, useDexNumbers, usePeople } from './bits'
+import type { Recipe } from '../lib/types'
+import { Avatar, cssVar, dexNo, DishArt, fmtMinutes, spring, Stepper, TempTag, TypeBadge, useDexNumbers, usePeople } from './bits'
 import { Icon } from './Icon'
 
 export function RecipeDetail({ id, shared }: { id: string; shared: boolean }) {
   const r = useApp((s) => s.recipes[id])
   const nums = useDexNumbers()
-  const { people, me, byId } = usePeople()
+  const { people } = usePeople()
   const [scrolled, setScrolled] = useState(false)
-  const [sendOpen, setSendOpen] = useState(false)
 
   useEffect(() => {
     if (r) markSeen(id)
@@ -37,8 +36,6 @@ export function RecipeDetail({ id, shared }: { id: string; shared: boolean }) {
     )
   }
 
-  const candidates = people.filter((p) => !r.knownBy.includes(p.id))
-
   return (
     <>
       <motion.div className="detail-bg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.22 } }} />
@@ -52,7 +49,7 @@ export function RecipeDetail({ id, shared }: { id: string; shared: boolean }) {
           animate={{ y: 0, opacity: 1, transition: { ...spring, delay: 0.04 } }}
           exit={{ y: 80, opacity: 0, transition: { duration: 0.2 } }}
         >
-          <Body r={r} no={nums.get(r.id) ?? 0} onSend={() => setSendOpen(true)} />
+          <Body r={r} no={nums.get(r.id) ?? 0} />
         </motion.div>
       </div>
 
@@ -71,8 +68,6 @@ export function RecipeDetail({ id, shared }: { id: string; shared: boolean }) {
           <Icon name="edit" size={19} />
         </button>
       </motion.div>
-
-      <SendSheet open={sendOpen} onClose={() => setSendOpen(false)} r={r} candidates={candidates} me={me} people={people} byId={byId} />
     </>
   )
 }
@@ -130,7 +125,7 @@ function Hero({ r, shared }: { r: Recipe; shared: boolean }) {
   )
 }
 
-function Body({ r, no, onSend }: { r: Recipe; no: number; onSend: () => void }) {
+function Body({ r, no }: { r: Recipe; no: number }) {
   const { people, me, byId } = usePeople()
   const [serv, setServ] = useState(r.servings)
   const [got, setGot] = useState<Set<number>>(() => new Set())
@@ -162,9 +157,6 @@ function Body({ r, no, onSend }: { r: Recipe; no: number; onSend: () => void }) 
   }, [cook])
 
   const factor = serv / r.servings
-  const learnReq = me ? r.learning[me] : undefined
-  const fromP = learnReq ? byId(learnReq.from) : undefined
-  const others = Object.entries(r.learning).filter(([pid]) => pid !== me)
   const toggle = (set: Set<number>, i: number) => {
     const n = new Set(set)
     if (n.has(i)) n.delete(i)
@@ -178,47 +170,15 @@ function Body({ r, no, onSend }: { r: Recipe; no: number; onSend: () => void }) 
   return (
     <>
       <div className="detail-tags">
-        <span className="mono faint" style={{ fontSize: 13, fontWeight: 600, marginRight: 4 }}>
+        <span className="faint" style={{ fontSize: 11, fontWeight: 650, letterSpacing: '0.12em', marginRight: 6 }}>
           {dexNo(no)}
         </span>
+        <TempTag temp={r.temp} />
         {r.types.map((t) => (
           <TypeBadge key={t} id={t} />
         ))}
       </div>
       <h1 className="detail-title display">{r.title}</h1>
-
-      <AnimatePresence>
-        {learnReq && me && (
-          <motion.div className="learn-card" style={cssVar({ '--c': fromP?.color ?? 'var(--accent)' })} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0, marginTop: 0, padding: 0 }}>
-            <div className="who">
-              <Avatar person={fromP} size={36} />
-              <div>
-                {fromP && fromP.id !== me ? `${fromP.name} wants you to learn this` : 'On your to-learn list'}
-                <div className="faint" style={{ fontSize: 13, fontWeight: 500 }}>
-                  Sent {relTime(learnReq.at)}
-                </div>
-              </div>
-            </div>
-            {learnReq.note && <q>{learnReq.note}</q>}
-            <div className="learn-actions">
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => {
-                  tap(20)
-                  setBurst((b) => b + 1)
-                  void setKnown(r.id, me, true)
-                  toast('Added to your dishes 🎉')
-                }}
-              >
-                <Icon name="check" size={17} stroke={2.6} /> I can make it now
-              </button>
-              <button className="btn btn-ghost btn-sm" onClick={() => void dismissLearn(r.id, me)}>
-                Not now
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <div className="section">
         <div className="section-head">
@@ -249,40 +209,6 @@ function Body({ r, no, onSend }: { r: Recipe; no: number; onSend: () => void }) 
           })}
           <Burst k={burst} />
         </div>
-        {others.map(([pid, req]) => (
-          <div key={pid} className="hint">
-            📚 {byId(pid)?.name ?? 'Someone'} is learning this · sent {relTime(req.at)}
-          </div>
-        ))}
-        {(() => {
-          const teach = people.find((p) => p.id !== me && !r.knownBy.includes(p.id) && !r.learning[p.id])
-          if (teach && me && r.knownBy.includes(me))
-            return (
-              <div className="nudge">
-                <span>{teach.name} can’t make this yet.</span>
-                <button className="btn btn-soft btn-sm" onClick={() => { tap(); onSend() }}>
-                  <Icon name="send" size={16} /> Send to {teach.name}
-                </button>
-              </div>
-            )
-          if (me && !r.knownBy.includes(me) && !r.learning[me])
-            return (
-              <div className="nudge">
-                <span>Want to learn this one?</span>
-                <button
-                  className="btn btn-soft btn-sm"
-                  onClick={() => {
-                    tap()
-                    void sendToLearn(r.id, me)
-                    toast('On your to-learn list 📚')
-                  }}
-                >
-                  <Icon name="book" size={16} /> Add to my list
-                </button>
-              </div>
-            )
-          return null
-        })()}
       </div>
 
       <div className="stats">
@@ -368,79 +294,6 @@ function Body({ r, no, onSend }: { r: Recipe; no: number; onSend: () => void }) 
         )}
       </div>
     </>
-  )
-}
-
-function SendSheet({
-  open,
-  onClose,
-  r,
-  candidates,
-  me,
-  people,
-  byId,
-}: {
-  open: boolean
-  onClose: () => void
-  r: Recipe
-  candidates: Person[]
-  me: string | null
-  people: Person[]
-  byId: (id: string) => Person | undefined
-}) {
-  const fallback = candidates.find((p) => p.id !== me) ?? candidates[0]
-  const [to, setTo] = useState<string | undefined>(fallback?.id)
-  const [note, setNote] = useState('')
-  useEffect(() => {
-    if (open) {
-      setTo(fallback?.id)
-      setNote('')
-    }
-  }, [open])
-  const target = to ? byId(to) : undefined
-  return (
-    <Sheet open={open} onClose={onClose} label="Send dish">
-      <h3>Send “{r.title}”</h3>
-      {candidates.length ? (
-        <>
-          <p>It lands on their “to learn” list, ready for when they want to cook it.</p>
-          <div className="who-grid" style={{ marginTop: 16 }}>
-            {candidates.map((p) => (
-              <button key={p.id} className="who-btn" aria-pressed={to === p.id} style={cssVar({ '--c': p.color })} onClick={() => { tap(); setTo(p.id) }}>
-                <Avatar person={p} size={34} />
-                {p.id === me ? 'Me' : p.name}
-                <span className="know-tick">
-                  <Icon name="check" size={13} stroke={3} />
-                </span>
-              </button>
-            ))}
-          </div>
-          <input className="input" style={{ marginTop: 12 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note (optional)" maxLength={140} />
-        </>
-      ) : (
-        <p>You both already know this one. You can still share it with someone else.</p>
-      )}
-      <div className="sheet-actions">
-        {candidates.length > 0 && (
-          <button
-            className="btn btn-primary btn-block"
-            disabled={!to}
-            onClick={() => {
-              if (!to) return
-              tap(16)
-              void sendToLearn(r.id, to, note.trim() || undefined)
-              toast(to === me ? 'Added to your to-learn list' : `Sent to ${target?.name ?? 'them'} 📬`)
-              onClose()
-            }}
-          >
-            <Icon name="send" size={19} /> {to === me ? 'Add to my to-learn list' : `Send to ${target?.name ?? '…'}`}
-          </button>
-        )}
-        <button className="btn btn-ghost btn-block" onClick={() => void shareRecipe(r, people)}>
-          <Icon name="share" size={19} /> Share outside the app
-        </button>
-      </div>
-    </Sheet>
   )
 }
 

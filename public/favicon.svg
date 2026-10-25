@@ -1,15 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FF7656"/>
-      <stop offset="1" stop-color="#D8381F"/>
+    <radialGradient id="bg" cx="28%" cy="16%" r="100%">
+      <stop offset="0" stop-color="#2F5646"/>
+      <stop offset="0.55" stop-color="#1B3329"/>
+      <stop offset="1" stop-color="#0E1C16"/>
+    </radialGradient>
+    <linearGradient id="brass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F7E6BC"/>
+      <stop offset="0.35" stop-color="#D8B571"/>
+      <stop offset="0.68" stop-color="#A57C3C"/>
+      <stop offset="1" stop-color="#E6C687"/>
+    </linearGradient>
+    <linearGradient id="blade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#F9ECCB"/>
+      <stop offset="1" stop-color="#C9A260"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="128" fill="url(#g)"/>
-  <g transform="translate(256 256) scale(1) translate(-256 -266)">
-    <circle cx="256" cy="148" r="24" fill="#fff"/>
-    <path d="M104 334a152 152 0 0 1 304 0z" fill="#fff"/>
-    <rect x="80" y="350" width="352" height="34" rx="17" fill="#fff"/>
-    <path d="M170 300a92 92 0 0 1 52-74" stroke="#E4482F" stroke-opacity=".35" stroke-width="18" stroke-linecap="round" fill="none"/>
+  <rect width="512" height="512" rx="128" fill="url(#bg)"/>
+  <g transform="translate(256 256) scale(1) translate(-244 -255)">
+    <!-- plate rim forms the bowl of the D -->
+    <path d="M195 133A122 122 0 0 1 195 377" fill="none" stroke="url(#brass)" stroke-width="18" stroke-linecap="round"/>
+    <path d="M195 165A90 90 0 0 1 195 345" fill="none" stroke="#D8B571" stroke-opacity=".32" stroke-width="3.5" stroke-linecap="round"/>
+    <!-- chef's knife forms the stem -->
+    <path d="M195 100L195 288L163 288L163 176C163 140 176 114 195 100Z" fill="url(#blade)"/>
+    <path d="M195 100L195 288" stroke="#8F6A32" stroke-opacity=".55" stroke-width="2"/>
+    <rect x="161" y="286" width="37" height="12" rx="4" fill="#A57C3C"/>
+    <rect x="166" y="298" width="29" height="108" rx="14.5" fill="url(#brass)"/>
+    <circle cx="180.5" cy="328" r="4.6" fill="#1B3329"/>
+    <circle cx="180.5" cy="376" r="4.6" fill="#1B3329"/>
   </g>
 </svg>

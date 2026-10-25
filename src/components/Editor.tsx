@@ -15,6 +15,7 @@ export function Editor({ id }: { id?: string }) {
   const [title, setTitle] = useState(original?.title ?? '')
   const [servings, setServings] = useState(original?.servings ?? 2)
   const [minutes, setMinutes] = useState<number | undefined>(original?.minutes)
+  const [temp, setTemp] = useState<'hot' | 'cold' | undefined>(original?.temp)
   const [types, setTypes] = useState<string[]>(original?.types ?? [])
   const [ingredients, setIngredients] = useState<string[]>(original?.ingredients.length ? original.ingredients : [''])
   const [steps, setSteps] = useState<string[]>(original?.steps.length ? original.steps : [''])
@@ -42,6 +43,7 @@ export function Editor({ id }: { id?: string }) {
     title !== (original?.title ?? '') ||
     servings !== (original?.servings ?? 2) ||
     minutes !== original?.minutes ||
+    temp !== original?.temp ||
     types.join() !== (original?.types ?? []).join() ||
     ingredients.filter(Boolean).join('\n') !== (original?.ingredients ?? []).join('\n') ||
     steps.filter(Boolean).join('\n') !== (original?.steps ?? []).join('\n') ||
@@ -69,7 +71,7 @@ export function Editor({ id }: { id?: string }) {
     setBusy(true)
     try {
       const newId = await saveRecipe(
-        { title, servings, minutes, types, ingredients, steps, notes, knownBy, photo },
+        { title, servings, minutes, temp, types, ingredients, steps, notes, knownBy, photo },
         original,
       )
       if (original) {
@@ -179,6 +181,16 @@ export function Editor({ id }: { id?: string }) {
               </div>
               <Stepper value={minutes ?? 0} min={0} max={600} step={minutes && minutes >= 60 ? 15 : 5} onChange={(n) => setMinutes(n || undefined)} format={(n) => fmtMinutes(n || undefined)} />
             </div>
+          </div>
+
+          <span className="field-label">Served</span>
+          <div className="temp-seg" role="group" aria-label="Served hot or cold">
+            {(['hot', 'cold'] as const).map((t) => (
+              <button key={t} type="button" className="temp-btn" data-t={t} aria-pressed={temp === t} onClick={() => { tap(); setTemp(temp === t ? undefined : t) }}>
+                <Icon name={t === 'hot' ? 'flame' : 'snow'} size={19} stroke={2.1} />
+                {t === 'hot' ? 'Hot' : 'Cold'}
+              </button>
+            ))}
           </div>
 
           <span className="field-label">Ingredients</span>

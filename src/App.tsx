@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useDragControls } from 'motion/react'
 import { useEffect, type ReactNode } from 'react'
 import { Toasts } from './components/bits'
 import { Dex } from './components/Dex'
+import { Celebration } from './components/Medals'
 import { Editor } from './components/Editor'
 import { Onboarding, Splash } from './components/Onboarding'
 import { Profile } from './components/Profile'
@@ -51,6 +52,7 @@ export function App() {
           return route ? <Layer key={`${i}:${path}`} route={route} index={i} /> : null
         })}
       </AnimatePresence>
+      <Celebration />
       <Toasts />
     </>
   )

@@ -82,9 +82,12 @@ export const prefs = {
   setSeen: (m: Record<string, string>) => lsSet('seen', m),
   view: () => lsGet<'grid' | 'list'>('view') || 'grid',
   setView: (v: 'grid' | 'list') => lsSet('view', v),
+  /** Highest milestone whose medal this phone has collected. */
+  collected: () => lsGet<number>('collected') ?? 0,
+  setCollected: (n: number) => lsSet('collected', n),
   installDismissed: () => !!lsGet<boolean>('installDismissed'),
   setInstallDismissed: () => lsSet('installDismissed', true),
   clearAll() {
-    for (const k of ['conn', 'me', 'seen']) lsSet(k, null)
+    for (const k of ['conn', 'me', 'seen', 'collected']) lsSet(k, null)
   },
 }

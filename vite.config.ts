@@ -18,8 +18,8 @@ export default defineConfig({
         scope: './',
         display: 'standalone',
         orientation: 'portrait',
-        theme_color: '#F6F1EA',
-        background_color: '#F6F1EA',
+        theme_color: '#F2EDE4',
+        background_color: '#F2EDE4',
         icons: [
           { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },
@@ -28,7 +28,7 @@ export default defineConfig({
       },
       workbox: {
         // Only the app shell is cached. GitHub API traffic is never cached by the service worker.
-        globPatterns: ['**/*.{js,css,html,svg,png}', '**/*-latin-*.woff2'],
+        globPatterns: ['**/*.{js,css,html,svg,png}', '**/*-latin-[ow]*.woff2'],
         navigateFallback: 'index.html',
       },
     }),

@@ -7,7 +7,7 @@ export function recipeText(r: Recipe, people: Person[]) {
   const who = r.knownBy.map((id) => people.find((p) => p.id === id)?.name).filter(Boolean).join(' & ')
   const lines = [
     r.title,
-    `Serves ${r.servings}${r.minutes ? ` · ${r.minutes} min` : ''}${who ? ` · ${who}’s recipe` : ''}`,
+    `Serves ${r.servings}${r.minutes ? ` · ${r.minutes} min` : ''}${r.temp ? ` · served ${r.temp}` : ''}${who ? ` · ${who}’s recipe` : ''}`,
     '',
     'Ingredients',
     ...r.ingredients.map((i) => `• ${i}`),

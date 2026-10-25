@@ -1,12 +1,14 @@
 import { AnimatePresence, motion, useMotionValue, useTransform } from 'motion/react'
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 import { canPromptInstall, copyText, isIOS, isStandalone, onInstallChange, promptInstall, tap } from '../lib/device'
 import { prefs } from '../lib/local'
 import { usePhoto } from '../lib/photos'
 import { go } from '../lib/router'
 import { isNew, makeInvite, markAllSeen, syncNow, toast, useApp } from '../lib/store'
-import { DISH_TYPES, type Person, type Recipe } from '../lib/types'
-import { Avatar, cssVar, dexNo, DishArt, fmtMinutes, KnownDots, Logo, spring, SyncStatus, TypeBadge, useDexNumbers, usePeople } from './bits'
+import { DISH_TYPES, type Recipe } from '../lib/types'
+import { dexNo, DishArt, fmtMinutes, KnownDots, Logo, spring, SyncStatus, TempTag, TypeBadge, useDexNumbers, usePeople } from './bits'
+import { DexCard, MedalSheet } from './Medals'
+import type { Tier } from '../lib/tiers'
 import { ReconnectSheet } from './Connection'
 import { Icon, IosShareGlyph } from './Icon'
 
@@ -22,6 +24,8 @@ export function Dex({ inert }: { inert: boolean }) {
   const [q, setQ] = useState('')
   const [who, setWho] = useState<Who>('all')
   const [type, setType] = useState<string | null>(null)
+  const [temp, setTemp] = useState<'hot' | 'cold' | null>(null)
+  const [medal, setMedal] = useState<Tier | null>(null)
   const [sort, setSort] = useState<Sort>('no')
   const [view, setViewState] = useState(prefs.view())
   const [stuck, setStuck] = useState(false)
@@ -33,7 +37,6 @@ export function Dex({ inert }: { inert: boolean }) {
   const lastY = useRef(0)
 
   const all = useMemo(() => Object.values(recipes), [recipes])
-  const learnCount = (pid: string) => all.filter((r) => r.learning[pid]).length
   const presentTypes = DISH_TYPES.filter((t) => all.some((r) => r.types.includes(t.id)))
 
   const list = useMemo(() => {
@@ -42,8 +45,9 @@ export function Dex({ inert }: { inert: boolean }) {
       if (who === 'both' && !people.every((p) => r.knownBy.includes(p.id))) return false
       if (who !== 'all' && who !== 'both' && !r.knownBy.includes(who)) return false
       if (type && !r.types.includes(type)) return false
+      if (temp && r.temp !== temp) return false
       if (needle) {
-        const hay = `${r.title}\n${r.ingredients.join('\n')}\n${r.types.join(' ')}`.toLowerCase()
+        const hay = `${r.title}\n${r.ingredients.join('\n')}\n${r.types.join(' ')}\n${r.temp ?? ''}`.toLowerCase()
         if (!hay.includes(needle)) return false
       }
       return true
@@ -52,7 +56,13 @@ export function Dex({ inert }: { inert: boolean }) {
     else if (sort === 'new') out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     else out.sort((a, b) => (nums.get(a.id) ?? 0) - (nums.get(b.id) ?? 0))
     return out
-  }, [all, q, who, type, sort, nums, people, me])
+  }, [all, q, who, type, temp, sort, nums, people, me])
+
+  useEffect(() => {
+    const top = () => scroller.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    window.addEventListener('dishdex:top', top)
+    return () => window.removeEventListener('dishdex:top', top)
+  }, [])
 
   const setView = (v: 'grid' | 'list') => {
     tap()
@@ -129,7 +139,9 @@ export function Dex({ inert }: { inert: boolean }) {
           <div className="dex-topline">
             <h1 className="wordmark display" style={{ margin: 0 }}>
               <Logo />
-              Dishdex
+              <span>
+                Dish<em>dex</em>
+              </span>
             </h1>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <SyncStatus
@@ -145,11 +157,7 @@ export function Dex({ inert }: { inert: boolean }) {
             </div>
           </div>
 
-          <div className="duo">
-            {[...people].sort((a, b) => Number(b.id === me) - Number(a.id === me)).map((p) => (
-              <DuoCard key={p.id} person={p} isMe={p.id === me} known={all.filter((r) => r.knownBy.includes(p.id)).length} total={all.length} learning={learnCount(p.id)} />
-            ))}
-          </div>
+          <DexCard onOpenMedal={setMedal} />
           {syncState === 'auth' && <AuthBanner onFix={() => setReconnectOpen(true)} />}
           <ForYou all={all} />
           <InstallBanner />
@@ -181,12 +189,15 @@ export function Dex({ inert }: { inert: boolean }) {
           <div className="chips" role="group" aria-label="Filters">
             <Chip on={who === 'all'} onClick={() => setWho('all')} label="All" n={all.length} />
             {people.map((p) => (
-              <Chip key={p.id} on={who === p.id} onClick={() => setWho(who === p.id ? 'all' : p.id)} label={p.name} n={all.filter((r) => r.knownBy.includes(p.id)).length} emoji={p.emoji} />
+              <Chip key={p.id} on={who === p.id} onClick={() => setWho(who === p.id ? 'all' : p.id)} label={p.name} n={all.filter((r) => r.knownBy.includes(p.id)).length} />
             ))}
             {people.length > 1 && <Chip on={who === 'both'} onClick={() => setWho(who === 'both' ? 'all' : 'both')} label="Both" n={all.filter((r) => people.every((p) => r.knownBy.includes(p.id))).length} />}
+            <span className="chip-sep" />
+            <Chip on={temp === 'hot'} onClick={() => setTemp(temp === 'hot' ? null : 'hot')} label="Hot" icon={<Icon name="flame" size={14} stroke={2.2} style={{ color: temp === 'hot' ? undefined : 'var(--hot)' }} />} />
+            <Chip on={temp === 'cold'} onClick={() => setTemp(temp === 'cold' ? null : 'cold')} label="Cold" icon={<Icon name="snow" size={14} stroke={2.2} style={{ color: temp === 'cold' ? undefined : 'var(--cold)' }} />} />
             {presentTypes.length > 0 && <span className="chip-sep" />}
             {presentTypes.map((t) => (
-              <Chip key={t.id} on={type === t.id} onClick={() => setType(type === t.id ? null : t.id)} label={t.label} emoji={t.emoji} />
+              <Chip key={t.id} on={type === t.id} onClick={() => setType(type === t.id ? null : t.id)} label={t.label} dot={t.color} />
             ))}
           </div>
         </div>
@@ -207,10 +218,10 @@ export function Dex({ inert }: { inert: boolean }) {
           <EmptyDex partnerName={partner?.name} />
         ) : list.length === 0 ? (
           <div className="empty">
-            <div style={{ fontSize: 44 }}>🔍</div>
+            <Icon name="search" size={40} stroke={1.4} className="faint" />
             <h2 className="display">Nothing matches</h2>
             <p>Try a different search, or clear the filters.</p>
-            <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={() => { setQ(''); setWho('all'); setType(null) }}>
+            <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={() => { setQ(''); setWho('all'); setType(null); setTemp(null) }}>
               Clear filters
             </button>
           </div>
@@ -249,6 +260,14 @@ export function Dex({ inert }: { inert: boolean }) {
         )}
       </AnimatePresence>
       <ReconnectSheet open={reconnectOpen} onClose={() => setReconnectOpen(false)} />
+      <MedalSheet
+        tier={medal}
+        onClose={() => setMedal(null)}
+        onCollect={(t) => {
+          setMedal(null)
+          useApp.setState({ celebrate: t })
+        }}
+      />
     </div>
   )
 }
@@ -275,18 +294,16 @@ function ForYou({ all }: { all: Recipe[] }) {
   const seen = useApp((s) => s.seen)
   const { me, byId } = usePeople()
   if (!me) return null
-  const learn = all.filter((r) => r.learning[me]).sort((a, b) => b.learning[me].at.localeCompare(a.learning[me].at))
-  const fresh = all.filter((r) => isNew(r, me, seen) && !r.learning[me]).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-  const items = [
-    ...learn.map((r) => ({ r, line: `📚 ${byId(r.learning[me].from)?.name ?? 'Someone'} wants you to learn this` })),
-    ...fresh.map((r) => ({ r, line: seen[r.id] ? `✏️ Updated by ${byId(r.updatedBy)?.name ?? 'someone'}` : `✨ New from ${byId(r.updatedBy)?.name ?? 'someone'}` })),
-  ].slice(0, 10)
+  const fresh = all.filter((r) => isNew(r, me, seen)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  const items = fresh
+    .map((r) => ({ r, line: seen[r.id] ? `Updated by ${byId(r.updatedBy)?.name ?? 'someone'}` : `New from ${byId(r.updatedBy)?.name ?? 'someone'}` }))
+    .slice(0, 10)
   return (
     <AnimatePresence initial={false}>
       {items.length > 0 && (
         <motion.section className="foryou" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={spring}>
           <div className="foryou-head">
-            <span className="eyebrow">For you</span>
+            <span className="eyebrow">New in the dex</span>
             {fresh.length > 0 && (
               <button className="link" style={{ fontSize: 13 }} onClick={() => { tap(); markAllSeen() }}>
                 Mark seen
@@ -312,36 +329,14 @@ function ForYou({ all }: { all: Recipe[] }) {
   )
 }
 
-function Chip({ on, onClick, label, n, emoji }: { on: boolean; onClick: () => void; label: string; n?: number; emoji?: string }) {
+function Chip({ on, onClick, label, n, icon, dot }: { on: boolean; onClick: () => void; label: string; n?: number; icon?: ReactNode; dot?: string }) {
   return (
     <button className="chip" aria-pressed={on} onClick={() => { tap(); onClick() }}>
-      {emoji && <span aria-hidden="true">{emoji}</span>}
+      {icon}
+      {dot && <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', background: dot, flex: 'none' }} />}
       {label}
       {n !== undefined && <span className="n">{n}</span>}
     </button>
-  )
-}
-
-function DuoCard({ person, isMe, known, total, learning }: { person: Person; isMe: boolean; known: number; total: number; learning: number }) {
-  return (
-    <motion.button className="duo-card" style={cssVar({ '--c': person.color })} whileTap={{ scale: 0.97 }} onClick={() => { tap(); go(`/p/${person.id}`) }}>
-      <div className="duo-row">
-        <Avatar person={person} size={30} />
-        <span className="duo-name">
-          {person.name}
-          {isMe && <span className="faint" style={{ fontWeight: 500, fontSize: 13 }}> · you</span>}
-        </span>
-      </div>
-      <div className="duo-count">
-        <span>
-          <b>{known}</b> / {total}
-        </span>
-        {learning > 0 && <span className="badge-count">📚 {learning}</span>}
-      </div>
-      <div className="meter" style={cssVar({ '--c': person.color })}>
-        <motion.i initial={{ scaleX: 0 }} animate={{ scaleX: total ? known / total : 0 }} transition={{ ...spring, delay: 0.15 }} />
-      </div>
-    </motion.button>
   )
 }
 
@@ -379,8 +374,11 @@ function RecipeCard({ r, no, index, fresh }: { r: Recipe; no: number; index: num
       <div className="card-body">
         <div className="card-title">{r.title}</div>
         <div className="card-meta">
-          <span>{t ? `${t.emoji} ${t.label}` : `Serves ${r.servings}`}</span>
-          {r.minutes ? <span>{fmtMinutes(r.minutes)}</span> : t ? <span>Serves {r.servings}</span> : null}
+          <span className="card-type">{t ? t.label : `Serves ${r.servings}`}</span>
+          <span>
+            {r.temp && <TempTag temp={r.temp} bare />}
+            {r.minutes ? fmtMinutes(r.minutes) : null}
+          </span>
         </div>
       </div>
     </motion.button>
@@ -400,10 +398,11 @@ export function RecipeRow({ r, no, fresh, onOpen }: { r: Recipe; no: number; fre
           {fresh && <span className="new-dot" />}
         </div>
         <div className="row-sub">
+          <TempTag temp={r.temp} />
           {r.types.map((t) => (
             <TypeBadge key={t} id={t} />
           ))}
-          {!r.types.length && <span className="faint" style={{ fontSize: 13 }}>Serves {r.servings}</span>}
+          {!r.types.length && !r.temp && <span className="faint" style={{ fontSize: 13 }}>Serves {r.servings}</span>}
         </div>
       </div>
       <KnownDots ids={r.knownBy} size={26} />

@@ -52,6 +52,7 @@ export function normalizeRecipe(x: any): Recipe {
     title: str(x?.title).trim() || 'Untitled dish',
     servings: Number.isFinite(servings) && servings > 0 ? Math.min(servings, 99) : 2,
     minutes: Number.isFinite(minutes) && minutes > 0 ? minutes : undefined,
+    temp: x?.temp === 'hot' || x?.temp === 'cold' ? x.temp : undefined,
     types: uniq(arr(x?.types).filter((t): t is string => typeof t === 'string')).slice(0, 2),
     ingredients: arr(x?.ingredients).map(str).filter((s) => s.trim()),
     steps: arr(x?.steps).map(str).filter((s) => s.trim()),

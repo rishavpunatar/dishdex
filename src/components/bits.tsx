@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { tap } from '../lib/device'
 import { useApp } from '../lib/store'
 import { typeById, type Person, type PersonId, type Recipe } from '../lib/types'
@@ -10,33 +10,57 @@ export const cssVar = (vars: Record<string, string | number>) => vars as CSSProp
 export const spring = { type: 'spring', stiffness: 420, damping: 38, mass: 0.9 } as const
 export const softSpring = { type: 'spring', stiffness: 260, damping: 30 } as const
 
+/** Monogram: a chef's knife for the stem of the D, a plate rim for its bowl. */
 export function Logo({ size = 34 }: { size?: number }) {
+  const id = useId().replace(/:/g, '')
   return (
     <svg className="wordmark-mark" width={size} height={size} viewBox="0 0 512 512" aria-hidden="true">
       <defs>
-        <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#FF7656" />
-          <stop offset="1" stopColor="#D8381F" />
+        <radialGradient id={`bg${id}`} cx="28%" cy="16%" r="100%">
+          <stop offset="0" stopColor="#2F5646" />
+          <stop offset="0.55" stopColor="#1B3329" />
+          <stop offset="1" stopColor="#0E1C16" />
+        </radialGradient>
+        <linearGradient id={`br${id}`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#F7E6BC" />
+          <stop offset="0.35" stopColor="#D8B571" />
+          <stop offset="0.68" stopColor="#A57C3C" />
+          <stop offset="1" stopColor="#E6C687" />
+        </linearGradient>
+        <linearGradient id={`bl${id}`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#F9ECCB" />
+          <stop offset="1" stopColor="#C9A260" />
         </linearGradient>
       </defs>
-      <rect width="512" height="512" rx="128" fill="url(#lg)" />
-      <circle cx="256" cy="148" r="24" fill="#fff" />
-      <path d="M104 334a152 152 0 0 1 304 0z" fill="#fff" />
-      <rect x="80" y="350" width="352" height="34" rx="17" fill="#fff" />
-      <path d="M170 300a92 92 0 0 1 52-74" stroke="#E4482F" strokeOpacity=".35" strokeWidth="18" strokeLinecap="round" fill="none" />
+      <rect width="512" height="512" rx="118" fill={`url(#bg${id})`} />
+      <g transform="translate(12 1)">
+        <path d="M195 133A122 122 0 0 1 195 377" fill="none" stroke={`url(#br${id})`} strokeWidth="18" strokeLinecap="round" />
+        <path d="M195 165A90 90 0 0 1 195 345" fill="none" stroke="#D8B571" strokeOpacity=".32" strokeWidth="3.5" strokeLinecap="round" />
+        <path d="M195 100L195 288L163 288L163 176C163 140 176 114 195 100Z" fill={`url(#bl${id})`} />
+        <rect x="161" y="286" width="37" height="12" rx="4" fill="#A57C3C" />
+        <rect x="166" y="298" width="29" height="108" rx="14.5" fill={`url(#br${id})`} />
+        <circle cx="180.5" cy="328" r="4.6" fill="#1B3329" />
+        <circle cx="180.5" cy="376" r="4.6" fill="#1B3329" />
+      </g>
     </svg>
+  )
+}
+
+function Monogram({ person, size }: { person: Person; size: number }) {
+  return person.emoji ? (
+    <span className="emo" style={{ fontSize: size * 0.56 }}>
+      {person.emoji}
+    </span>
+  ) : (
+    <span style={{ fontSize: size * 0.5, marginTop: -size * 0.04 }}>{person.name.slice(0, 1).toUpperCase() || '·'}</span>
   )
 }
 
 export function Avatar({ person, size = 32, ring }: { person?: Person; size?: number; ring?: boolean }) {
   if (!person) return null
   return (
-    <span
-      className="avatar"
-      style={cssVar({ '--c': person.color, width: size, height: size, fontSize: size * 0.5, ...(ring ? { '--ring': 'var(--bg)' } : {}) })}
-      title={person.name}
-    >
-      {person.emoji ? <span className="emo" style={{ fontSize: size * 0.56 }}>{person.emoji}</span> : person.name.slice(0, 1).toUpperCase()}
+    <span className="avatar" style={cssVar({ '--c': person.color, width: size, height: size, ...(ring ? { '--ring': 'var(--bg)' } : {}) })} title={person.name}>
+      <Monogram person={person} size={size} />
     </span>
   )
 }
@@ -54,12 +78,12 @@ export function usePeople() {
 export function KnownDots({ ids, size = 22, ringColor }: { ids: PersonId[]; size?: number; ringColor?: string }) {
   const { byId } = usePeople()
   return (
-    <span className="dots" style={ringColor ? cssVar({ '--ring': ringColor }) : undefined}>
+    <span className="dots">
       {ids.map((id) => {
         const p = byId(id)
         return p ? (
-          <span key={id} className="avatar" style={cssVar({ '--c': p.color, width: size, height: size, fontSize: size * 0.5, boxShadow: `0 0 0 1.5px ${ringColor ?? 'var(--bg)'}` })} title={`${p.name} knows this`}>
-            {p.emoji ? <span className="emo" style={{ fontSize: size * 0.56 }}>{p.emoji}</span> : p.name.slice(0, 1).toUpperCase()}
+          <span key={id} className="avatar" style={cssVar({ '--c': p.color, width: size, height: size, boxShadow: `0 0 0 1.5px ${ringColor ?? 'var(--bg)'}` })} title={`${p.name} can cook this`}>
+            <Monogram person={p} size={size} />
           </span>
         ) : null
       })}
@@ -67,13 +91,29 @@ export function KnownDots({ ids, size = 22, ringColor }: { ids: PersonId[]; size
   )
 }
 
-export function TypeBadge({ id, onPhoto }: { id: string; onPhoto?: boolean }) {
+export function TypeBadge({ id }: { id: string }) {
   const t = typeById(id)
   if (!t) return null
   return (
-    <span className={`tbadge${onPhoto ? ' on-photo' : ''}`} style={cssVar({ '--c': t.color })}>
-      <span aria-hidden="true">{t.emoji}</span>
+    <span className="tbadge" style={cssVar({ '--c': t.color })}>
       {t.label}
+    </span>
+  )
+}
+
+export function TempTag({ temp, bare }: { temp?: 'hot' | 'cold'; bare?: boolean }) {
+  if (!temp) return null
+  const icon = <Icon name={temp === 'hot' ? 'flame' : 'snow'} size={bare ? 12 : 13} stroke={2.2} />
+  if (bare)
+    return (
+      <span aria-label={temp === 'hot' ? 'Served hot' : 'Served cold'} title={temp === 'hot' ? 'Served hot' : 'Served cold'} style={{ display: 'inline-flex' }}>
+        {icon}
+      </span>
+    )
+  return (
+    <span className="temp" data-t={temp}>
+      {icon}
+      {temp === 'hot' ? 'Hot' : 'Cold'}
     </span>
   )
 }
@@ -218,7 +258,7 @@ export const fmtMinutes = (m?: number) => {
   return r ? `${h}h ${r}m` : `${h}h`
 }
 
-export const dexNo = (n: number) => `#${String(n).padStart(3, '0')}`
+export const dexNo = (n: number) => `Nº ${String(n).padStart(3, '0')}`
 
 /** Pokédex-style numbering: order of first logging, identical on both phones. */
 export function useDexNumbers() {

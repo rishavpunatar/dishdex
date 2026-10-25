@@ -17,6 +17,7 @@ import { isAuthError, isConflict, jsonToB64, makeRemote, RemoteError, type Remot
 import { clearStashedInvite, readStashedInvite, stashInvite } from './handoff'
 import { isIOS, isStandalone } from './device'
 import type { Connection, Person, PersonId, Profiles, Recipe } from './types'
+import type { Tier } from './tiers'
 
 export type Phase = 'boot' | 'welcome' | 'setup' | 'whoami' | 'ready'
 export type SyncState = 'idle' | 'syncing' | 'synced' | 'offline' | 'error' | 'auth'
@@ -38,6 +39,10 @@ interface AppState {
   joining: boolean
   /** An invite we found but couldn't use yet (e.g. offline on first launch). */
   pendingInvite: string | null
+  /** Highest milestone medal collected on this phone. */
+  collected: number
+  /** A medal someone asked to collect from the medal sheet. */
+  celebrate: Tier | null
 }
 
 export const useApp = create<AppState>(() => ({
@@ -51,6 +56,8 @@ export const useApp = create<AppState>(() => ({
   toasts: [],
   joining: false,
   pendingInvite: null,
+  collected: prefs.collected(),
+  celebrate: null,
 }))
 
 const S = () => useApp.getState()
@@ -255,7 +262,7 @@ export async function disconnect() {
   remote = null
   meta = { head: null, shas: {} }
   outbox = []
-  setS({ conn: null, me: null, profiles: null, recipes: {}, seen: {}, sync: { state: 'idle', pending: 0 } })
+  setS({ conn: null, me: null, profiles: null, recipes: {}, seen: {}, collected: 0, sync: { state: 'idle', pending: 0 } })
   decidePhase()
 }
 
@@ -304,6 +311,7 @@ export interface Draft {
   title: string
   servings: number
   minutes?: number
+  temp?: 'hot' | 'cold'
   types: string[]
   ingredients: string[]
   steps: string[]
@@ -330,6 +338,7 @@ export async function saveRecipe(draft: Draft, original: Recipe | null): Promise
     title: draft.title.trim(),
     servings: draft.servings,
     minutes: draft.minutes,
+    temp: draft.temp,
     types: draft.types,
     ingredients: draft.ingredients.map((s) => s.trim()).filter(Boolean),
     steps: draft.steps.map((s) => s.trim()).filter(Boolean),
@@ -405,10 +414,6 @@ async function recipeOp(id: string, patch: Omit<RecipeOp, 'opId' | 'kind' | 'id'
 export const setKnown = (id: string, pid: PersonId, knows: boolean) =>
   recipeOp(id, knows ? { knownAdd: [pid] } : { knownRemove: [pid] })
 
-export const sendToLearn = (id: string, to: PersonId, note?: string) =>
-  recipeOp(id, { learnSet: { [to]: { from: S().me ?? '', at: new Date().toISOString(), ...(note ? { note } : {}) } } })
-
-export const dismissLearn = (id: string, pid: PersonId) => recipeOp(id, { learnRemove: [pid] })
 
 export async function deleteRecipe(id: string) {
   const r = S().recipes[id]
