@@ -8,7 +8,7 @@ import { shareRecipe } from '../lib/share'
 import { markSeen, setKnown, setRecipePhoto, toast, useApp } from '../lib/store'
 import { processPhoto } from '../lib/image'
 import type { Recipe } from '../lib/types'
-import { Avatar, cssVar, dexNo, DishArt, fmtMinutes, spring, Stepper, TempTag, TypeBadge, useDexNumbers, usePeople } from './bits'
+import { Avatar, CuisineBadge, cssVar, dexNo, DishArt, fmtMinutes, spring, Stepper, TempTag, TypeBadge, useDexNumbers, usePeople } from './bits'
 import { Icon } from './Icon'
 
 export function RecipeDetail({ id, shared }: { id: string; shared: boolean }) {
@@ -174,6 +174,7 @@ function Body({ r, no }: { r: Recipe; no: number }) {
           {dexNo(no)}
         </span>
         <TempTag temp={r.temp} />
+        <CuisineBadge id={r.cuisine} />
         {r.types.map((t) => (
           <TypeBadge key={t} id={t} />
         ))}

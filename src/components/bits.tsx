@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { tap } from '../lib/device'
 import { useApp } from '../lib/store'
-import { typeById, type Person, type PersonId, type Recipe } from '../lib/types'
+import { cuisineById, typeById, type Person, type PersonId, type Recipe } from '../lib/types'
 import { Icon } from './Icon'
 
 export const cssVar = (vars: Record<string, string | number>) => vars as CSSProperties
@@ -92,6 +92,16 @@ export function TypeBadge({ id }: { id: string }) {
   return (
     <span className="tbadge" style={cssVar({ '--c': t.color })}>
       {t.label}
+    </span>
+  )
+}
+
+export function CuisineBadge({ id }: { id?: string }) {
+  const c = cuisineById(id)
+  if (!c) return null
+  return (
+    <span className="tbadge cuisine" style={cssVar({ '--c': c.color })}>
+      {c.label}
     </span>
   )
 }

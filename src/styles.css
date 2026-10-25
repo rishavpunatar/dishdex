@@ -2793,3 +2793,13 @@ img {
 .fy-thumb .art::after {
   display: none;
 }
+
+.tbadge.cuisine {
+  color: color-mix(in srgb, var(--c) 78%, var(--ink));
+  background: color-mix(in srgb, var(--c) 10%, transparent);
+  box-shadow: none;
+}
+
+.tbadge.cuisine::before {
+  display: none;
+}

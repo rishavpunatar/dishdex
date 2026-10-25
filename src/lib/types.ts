@@ -33,6 +33,8 @@ export interface Recipe {
   minutes?: number
   /** How it's served. */
   temp?: 'hot' | 'cold'
+  /** One cuisine id from CUISINES. */
+  cuisine?: string
   types: string[]
   ingredients: string[]
   steps: string[]
@@ -80,6 +82,32 @@ export const DISH_TYPES: DishType[] = [
 ]
 
 export const typeById = (id: string) => DISH_TYPES.find((t) => t.id === id)
+
+export interface Cuisine {
+  id: string
+  label: string
+  color: string
+}
+
+export const CUISINES: Cuisine[] = [
+  { id: 'indian', label: 'Indian', color: '#C07A2C' },
+  { id: 'korean', label: 'Korean', color: '#A8413A' },
+  { id: 'japanese', label: 'Japanese', color: '#B04C55' },
+  { id: 'chinese', label: 'Chinese', color: '#9E3A2E' },
+  { id: 'thai', label: 'Thai', color: '#5E8A4A' },
+  { id: 'vietnamese', label: 'Vietnamese', color: '#6E8F45' },
+  { id: 'spanish', label: 'Spanish', color: '#B5652F' },
+  { id: 'italian', label: 'Italian', color: '#4F7A4E' },
+  { id: 'greek', label: 'Greek', color: '#3E6F92' },
+  { id: 'middle-eastern', label: 'Middle Eastern', color: '#A9813F' },
+  { id: 'turkish', label: 'Turkish', color: '#8E3B45' },
+  { id: 'british', label: 'British', color: '#3F5370' },
+  { id: 'french', label: 'French', color: '#5A5E8C' },
+  { id: 'mexican', label: 'Mexican', color: '#A8562E' },
+  { id: 'american', label: 'American', color: '#6A5446' },
+]
+
+export const cuisineById = (id?: string) => (id ? CUISINES.find((c) => c.id === id) : undefined)
 
 export const PERSON_COLORS = ['#7D2E36', '#2E4A6B', '#2E5446', '#A27A43', '#8A5A3E', '#5E6A4A', '#6A4A6E', '#3D6B6A']
 

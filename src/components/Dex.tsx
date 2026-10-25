@@ -5,8 +5,8 @@ import { prefs } from '../lib/local'
 import { usePhoto } from '../lib/photos'
 import { go } from '../lib/router'
 import { isNew, makeInvite, markAllSeen, syncNow, toast, useApp } from '../lib/store'
-import { DISH_TYPES, type Recipe } from '../lib/types'
-import { dexNo, DishArt, fmtMinutes, KnownDots, Logo, spring, SyncStatus, TempTag, TypeBadge, useDexNumbers, usePeople } from './bits'
+import { CUISINES, cuisineById, DISH_TYPES, type Recipe } from '../lib/types'
+import { CuisineBadge, dexNo, DishArt, fmtMinutes, KnownDots, Logo, spring, SyncStatus, TempTag, TypeBadge, useDexNumbers, usePeople } from './bits'
 import { DexCard, MedalSheet } from './Medals'
 import type { Tier } from '../lib/tiers'
 import { ReconnectSheet } from './Connection'
@@ -25,6 +25,7 @@ export function Dex({ inert }: { inert: boolean }) {
   const [who, setWho] = useState<Who>('all')
   const [type, setType] = useState<string | null>(null)
   const [temp, setTemp] = useState<'hot' | 'cold' | null>(null)
+  const [cuisine, setCuisine] = useState<string | null>(null)
   const [medal, setMedal] = useState<Tier | null>(null)
   const [sort, setSort] = useState<Sort>('no')
   const [view, setViewState] = useState(prefs.view())
@@ -38,6 +39,7 @@ export function Dex({ inert }: { inert: boolean }) {
 
   const all = useMemo(() => Object.values(recipes), [recipes])
   const presentTypes = DISH_TYPES.filter((t) => all.some((r) => r.types.includes(t.id)))
+  const presentCuisines = CUISINES.filter((c) => all.some((r) => r.cuisine === c.id))
 
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -46,8 +48,9 @@ export function Dex({ inert }: { inert: boolean }) {
       if (who !== 'all' && who !== 'both' && !r.knownBy.includes(who)) return false
       if (type && !r.types.includes(type)) return false
       if (temp && r.temp !== temp) return false
+      if (cuisine && r.cuisine !== cuisine) return false
       if (needle) {
-        const hay = `${r.title}\n${r.ingredients.join('\n')}\n${r.types.join(' ')}\n${r.temp ?? ''}`.toLowerCase()
+        const hay = `${r.title}\n${r.ingredients.join('\n')}\n${r.types.join(' ')}\n${r.temp ?? ''}\n${cuisineById(r.cuisine)?.label ?? ''}`.toLowerCase()
         if (!hay.includes(needle)) return false
       }
       return true
@@ -56,7 +59,7 @@ export function Dex({ inert }: { inert: boolean }) {
     else if (sort === 'new') out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     else out.sort((a, b) => (nums.get(a.id) ?? 0) - (nums.get(b.id) ?? 0))
     return out
-  }, [all, q, who, type, temp, sort, nums, people, me])
+  }, [all, q, who, type, temp, cuisine, sort, nums, people, me])
 
   useEffect(() => {
     const top = () => scroller.current?.scrollTo({ top: 0, behavior: 'smooth' })
@@ -195,6 +198,10 @@ export function Dex({ inert }: { inert: boolean }) {
             <span className="chip-sep" />
             <Chip on={temp === 'hot'} onClick={() => setTemp(temp === 'hot' ? null : 'hot')} label="Hot" icon={<Icon name="flame" size={14} stroke={2.2} style={{ color: temp === 'hot' ? undefined : 'var(--hot)' }} />} />
             <Chip on={temp === 'cold'} onClick={() => setTemp(temp === 'cold' ? null : 'cold')} label="Cold" icon={<Icon name="snow" size={14} stroke={2.2} style={{ color: temp === 'cold' ? undefined : 'var(--cold)' }} />} />
+            {presentCuisines.length > 0 && <span className="chip-sep" />}
+            {presentCuisines.map((c) => (
+              <Chip key={c.id} on={cuisine === c.id} onClick={() => setCuisine(cuisine === c.id ? null : c.id)} label={c.label} dot={c.color} />
+            ))}
             {presentTypes.length > 0 && <span className="chip-sep" />}
             {presentTypes.map((t) => (
               <Chip key={t.id} on={type === t.id} onClick={() => setType(type === t.id ? null : t.id)} label={t.label} dot={t.color} />
@@ -221,7 +228,7 @@ export function Dex({ inert }: { inert: boolean }) {
             <Icon name="search" size={40} stroke={1.4} className="faint" />
             <h2 className="display">Nothing matches</h2>
             <p>Try a different search, or clear the filters.</p>
-            <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={() => { setQ(''); setWho('all'); setType(null); setTemp(null) }}>
+            <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={() => { setQ(''); setWho('all'); setType(null); setTemp(null); setCuisine(null) }}>
               Clear filters
             </button>
           </div>
@@ -374,7 +381,7 @@ function RecipeCard({ r, no, index, fresh }: { r: Recipe; no: number; index: num
       <div className="card-body">
         <div className="card-title">{r.title}</div>
         <div className="card-meta">
-          <span className="card-type">{t ? t.label : `Serves ${r.servings}`}</span>
+          <span className="card-type">{cuisineById(r.cuisine)?.label ?? t?.label ?? `Serves ${r.servings}`}</span>
           <span>
             {r.temp && <TempTag temp={r.temp} bare />}
             {r.minutes ? fmtMinutes(r.minutes) : null}
@@ -399,10 +406,11 @@ export function RecipeRow({ r, no, fresh, onOpen }: { r: Recipe; no: number; fre
         </div>
         <div className="row-sub">
           <TempTag temp={r.temp} />
+          <CuisineBadge id={r.cuisine} />
           {r.types.map((t) => (
             <TypeBadge key={t} id={t} />
           ))}
-          {!r.types.length && !r.temp && <span className="faint" style={{ fontSize: 13 }}>Serves {r.servings}</span>}
+          {!r.types.length && !r.temp && !r.cuisine && <span className="faint" style={{ fontSize: 13 }}>Serves {r.servings}</span>}
         </div>
       </div>
       <KnownDots ids={r.knownBy} size={26} />

@@ -26,4 +26,8 @@ describe('applyRecipeOp', () => {
     const r = applyRecipeOp({ ...base, minutes: 30 }, { opId: 'x', kind: 'recipe', id: 'r1', set: { minutes: undefined } })!
     expect(JSON.parse(JSON.stringify(r)).minutes).toBeUndefined()
   })
+  it('keeps known cuisines and drops anything else', () => {
+    expect(normalizeRecipe({ ...base, cuisine: 'korean' }).cuisine).toBe('korean')
+    expect(normalizeRecipe({ ...base, cuisine: 'martian' }).cuisine).toBeUndefined()
+  })
 })

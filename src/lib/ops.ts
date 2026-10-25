@@ -1,4 +1,4 @@
-import type { LearnRequest, PersonId, Profiles, Recipe } from './types'
+import { CUISINES, type LearnRequest, type PersonId, type Profiles, type Recipe } from './types'
 
 /**
  * Local changes are queued as ops and replayed against the *latest* remote copy,
@@ -53,6 +53,7 @@ export function normalizeRecipe(x: any): Recipe {
     servings: Number.isFinite(servings) && servings > 0 ? Math.min(servings, 99) : 2,
     minutes: Number.isFinite(minutes) && minutes > 0 ? minutes : undefined,
     temp: x?.temp === 'hot' || x?.temp === 'cold' ? x.temp : undefined,
+    cuisine: CUISINES.some((c) => c.id === x?.cuisine) ? (x.cuisine as string) : undefined,
     types: uniq(arr(x?.types).filter((t): t is string => typeof t === 'string')).slice(0, 2),
     ingredients: arr(x?.ingredients).map(str).filter((s) => s.trim()),
     steps: arr(x?.steps).map(str).filter((s) => s.trim()),

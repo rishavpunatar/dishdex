@@ -5,7 +5,7 @@ import { processPhoto } from '../lib/image'
 import { usePhoto } from '../lib/photos'
 import { back, home, replace } from '../lib/router'
 import { deleteRecipe, saveRecipe, toast, useApp, type DraftPhoto } from '../lib/store'
-import { DISH_TYPES } from '../lib/types'
+import { CUISINES, DISH_TYPES } from '../lib/types'
 import { Avatar, cssVar, fmtMinutes, Sheet, Stepper, usePeople } from './bits'
 import { Icon } from './Icon'
 
@@ -16,6 +16,7 @@ export function Editor({ id }: { id?: string }) {
   const [servings, setServings] = useState(original?.servings ?? 2)
   const [minutes, setMinutes] = useState<number | undefined>(original?.minutes)
   const [temp, setTemp] = useState<'hot' | 'cold' | undefined>(original?.temp)
+  const [cuisine, setCuisine] = useState<string | undefined>(original?.cuisine)
   const [types, setTypes] = useState<string[]>(original?.types ?? [])
   const [ingredients, setIngredients] = useState<string[]>(original?.ingredients.length ? original.ingredients : [''])
   const [steps, setSteps] = useState<string[]>(original?.steps.length ? original.steps : [''])
@@ -44,6 +45,7 @@ export function Editor({ id }: { id?: string }) {
     servings !== (original?.servings ?? 2) ||
     minutes !== original?.minutes ||
     temp !== original?.temp ||
+    cuisine !== original?.cuisine ||
     types.join() !== (original?.types ?? []).join() ||
     ingredients.filter(Boolean).join('\n') !== (original?.ingredients ?? []).join('\n') ||
     steps.filter(Boolean).join('\n') !== (original?.steps ?? []).join('\n') ||
@@ -71,7 +73,7 @@ export function Editor({ id }: { id?: string }) {
     setBusy(true)
     try {
       const newId = await saveRecipe(
-        { title, servings, minutes, temp, types, ingredients, steps, notes, knownBy, photo },
+        { title, servings, minutes, temp, cuisine, types, ingredients, steps, notes, knownBy, photo },
         original,
       )
       if (original) {
@@ -200,6 +202,15 @@ export function Editor({ id }: { id?: string }) {
           <span className="field-label">The rough how-to</span>
           <ListEditor items={steps} onChange={setSteps} placeholder="What happens next…" addLabel="Add step" numbered />
 
+          <span className="field-label">Cuisine</span>
+          <div className="type-grid">
+            {CUISINES.map((c) => (
+              <button key={c.id} type="button" className="type-chip" aria-pressed={cuisine === c.id} style={cssVar({ '--c': c.color })} onClick={() => { tap(); setCuisine(cuisine === c.id ? undefined : c.id) }}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+
           <span className="field-label">Type <span className="faint" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>· up to two</span></span>
           <div className="type-grid">
             {DISH_TYPES.map((t) => {
@@ -216,7 +227,6 @@ export function Editor({ id }: { id?: string }) {
                     setTypes(on ? types.filter((x) => x !== t.id) : [...types, t.id].slice(-2))
                   }}
                 >
-                  <span aria-hidden="true">{t.emoji}</span>
                   {t.label}
                 </button>
               )

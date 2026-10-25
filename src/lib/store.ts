@@ -312,6 +312,7 @@ export interface Draft {
   servings: number
   minutes?: number
   temp?: 'hot' | 'cold'
+  cuisine?: string
   types: string[]
   ingredients: string[]
   steps: string[]
@@ -339,6 +340,7 @@ export async function saveRecipe(draft: Draft, original: Recipe | null): Promise
     servings: draft.servings,
     minutes: draft.minutes,
     temp: draft.temp,
+    cuisine: draft.cuisine,
     types: draft.types,
     ingredients: draft.ingredients.map((s) => s.trim()).filter(Boolean),
     steps: draft.steps.map((s) => s.trim()).filter(Boolean),
