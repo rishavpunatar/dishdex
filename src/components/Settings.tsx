@@ -3,7 +3,7 @@ import { relTime, tap } from '../lib/device'
 import { back } from '../lib/router'
 import { chooseMe, disconnect, exportBackup, syncNow, toast, updatePerson, useApp } from '../lib/store'
 import { InviteSheet, ReconnectSheet } from './Connection'
-import { PERSON_COLORS, PERSON_EMOJI, type Person } from '../lib/types'
+import { PERSON_COLORS, type Person } from '../lib/types'
 import { Avatar, cssVar, Sheet, usePeople } from './bits'
 import { Icon, type IconName } from './Icon'
 
@@ -137,18 +137,8 @@ export function PersonEditor({ value, onChange }: { value: Person; onChange: (p:
   return (
     <>
       <div className="person-ed-top">
-        <Avatar person={value} size={52} />
+        <Avatar person={value} size={56} />
         <input className="input" value={value.name} onChange={(e) => onChange({ ...value, name: e.target.value })} placeholder="Name" maxLength={24} aria-label="Name" />
-      </div>
-      <div className="emoji-row" role="group" aria-label="Avatar">
-        <button type="button" className="emoji-btn" aria-pressed={!value.emoji} onClick={() => onChange({ ...value, emoji: '' })} style={{ fontSize: 16, fontWeight: 700 }}>
-          {value.name.slice(0, 1).toUpperCase() || 'A'}
-        </button>
-        {PERSON_EMOJI.map((e) => (
-          <button type="button" key={e} className="emoji-btn" aria-pressed={value.emoji === e} onClick={() => { tap(); onChange({ ...value, emoji: e }) }}>
-            {e}
-          </button>
-        ))}
       </div>
       <div className="swatches" role="group" aria-label="Colour">
         {PERSON_COLORS.map((c) => (

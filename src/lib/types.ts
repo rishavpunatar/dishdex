@@ -3,6 +3,7 @@ export type PersonId = string
 export interface Person {
   id: PersonId
   name: string
+  /** Legacy: avatars are always the initial now; kept so older profiles still parse. */
   emoji: string
   color: string
 }
@@ -82,4 +83,3 @@ export const typeById = (id: string) => DISH_TYPES.find((t) => t.id === id)
 
 export const PERSON_COLORS = ['#7D2E36', '#2E4A6B', '#2E5446', '#A27A43', '#8A5A3E', '#5E6A4A', '#6A4A6E', '#3D6B6A']
 
-export const PERSON_EMOJI = ['🧑‍🍳', '🦊', '🐻', '🐼', '🐯', '🐸', '🐙', '🦄', '🐝', '🌶️', '🥑', '🍋', '🍓', '🧄', '🍩', '🌮', '🥟', '🍜', '🧁', '🍕']

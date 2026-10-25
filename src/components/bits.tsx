@@ -46,14 +46,9 @@ export function Logo({ size = 34 }: { size?: number }) {
   )
 }
 
+/** Everyone is a serif initial on their colour — no photos, no emoji. */
 function Monogram({ person, size }: { person: Person; size: number }) {
-  return person.emoji ? (
-    <span className="emo" style={{ fontSize: size * 0.56 }}>
-      {person.emoji}
-    </span>
-  ) : (
-    <span style={{ fontSize: size * 0.5, marginTop: -size * 0.04 }}>{person.name.slice(0, 1).toUpperCase() || '·'}</span>
-  )
+  return <span style={{ fontSize: size * 0.5, marginTop: -size * 0.04 }}>{person.name.trim().slice(0, 1).toUpperCase() || '·'}</span>
 }
 
 export function Avatar({ person, size = 32, ring }: { person?: Person; size?: number; ring?: boolean }) {
