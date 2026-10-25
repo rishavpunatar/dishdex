@@ -71,6 +71,9 @@ export function Settings() {
         <p className="faint" style={{ fontSize: 13, margin: '22px 4px 0', lineHeight: 1.5 }}>
           Recipes and photos go straight from your phones to your own private GitHub repo. There’s no Dishdex server, no analytics and no third-party scripts. Fonts are bundled with the app.
         </p>
+        <p className="faint" style={{ fontSize: 12, margin: '14px 4px 0', letterSpacing: '0.04em' }}>
+          Version {__BUILD__} UTC
+        </p>
       </div>
 
       <PersonSheet person={editing} onClose={() => setEditing(null)} />

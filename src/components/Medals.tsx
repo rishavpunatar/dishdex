@@ -5,7 +5,7 @@ import { prefs } from '../lib/local'
 import { go, home, useStack } from '../lib/router'
 import { useApp } from '../lib/store'
 import { MILESTONES, nextTier, tierFor, TOP, type Tier } from '../lib/tiers'
-import { Avatar, cssVar, dexNo, Sheet, spring, useDexNumbers, usePeople } from './bits'
+import { Avatar, cssVar, dexNo, Sheet, spring, useDexNumbers, useExitGuard, usePeople } from './bits'
 import { Icon } from './Icon'
 
 /** A struck-metal medal: scalloped rim, bevelled face, the milestone number in the middle. */
@@ -225,6 +225,7 @@ const CONFETTI_GOLD = ['#f3e0b2', '#cfa866', '#9c7438', '#fff8e8']
 
 function Ceremony({ tier, onDone }: { tier: Tier; onDone: () => void }) {
   const [scope, animate] = useAnimate()
+  const guard = useExitGuard()
   const [leaving, setLeaving] = useState(false)
   const pieces = useMemo(() => {
     const cols = [...tier.colors, ...CONFETTI_GOLD]
@@ -279,7 +280,7 @@ function Ceremony({ tier, onDone }: { tier: Tier; onDone: () => void }) {
   }
 
   return (
-    <motion.div ref={scope} className="celebrate" style={cssVar({ '--c': tier.colors[1] })} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.2 } }} role="dialog" aria-label={`${tier.name} medal unlocked`}>
+    <motion.div ref={scope} className="celebrate" style={{ ...cssVar({ '--c': tier.colors[1] }), ...guard }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.2 } }} role="dialog" aria-label={`${tier.name} medal unlocked`}>
       <div className="celebrate-bg" />
       <div className="celebrate-rays" />
       <div className="celebrate-glow" />

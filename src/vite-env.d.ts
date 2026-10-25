@@ -4,3 +4,5 @@
 interface ImportMetaEnv {
   readonly VITE_DEFAULT_REPO?: string
 }
+
+declare const __BUILD__: string

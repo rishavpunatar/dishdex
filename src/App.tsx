@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, useDragControls } from 'motion/react'
-import { useEffect, type ReactNode } from 'react'
-import { Toasts } from './components/bits'
+import { useEffect, type CSSProperties, type ReactNode } from 'react'
+import { Toasts, useExitGuard } from './components/bits'
 import { Dex } from './components/Dex'
 import { Celebration } from './components/Medals'
 import { Editor } from './components/Editor'
@@ -12,6 +12,7 @@ import { prefs } from './lib/local'
 import { back, clearUrlHash, parseRoute, useStack, type Route } from './lib/router'
 import { boot, toast, useApp } from './lib/store'
 import { resumeImports } from './lib/importer'
+import { startDiagnostics } from './lib/diagnostics'
 import { stashInvite } from './lib/handoff'
 import { isIOS, isStandalone } from './lib/device'
 
@@ -30,6 +31,7 @@ export function App() {
       // Leave the invite where the Home Screen app will find it after "Add to Home Screen".
       if (isIOS() && !isStandalone()) void stashInvite(initialInvite)
     }
+    startDiagnostics()
     void boot().then(() => {
       resumeImports()
       if (initialInvite && useApp.getState().phase === 'ready') toast('This phone is already connected')
@@ -70,9 +72,10 @@ export function App() {
 
 function Layer({ route, index, covered }: { route: Route; index: number; covered: boolean }) {
   const z = 100 + index * 10
+  const guard = useExitGuard()
   if (route.name === 'new' || route.name === 'edit' || route.name === 'import') {
     return (
-      <div className="layer" style={{ zIndex: z }} inert={covered}>
+      <div className="layer" style={{ zIndex: z, ...guard }} inert={covered}>
         <Editor id={route.name === 'edit' ? route.id : undefined} importId={route.name === 'import' ? route.id : undefined} />
       </div>
     )
@@ -81,20 +84,20 @@ function Layer({ route, index, covered }: { route: Route; index: number; covered
     // Straight off the card grid, the photo flies from its card into the hero.
     const shared = index === 0 && !route.fresh && prefs.view() === 'grid'
     return (
-      <SwipeBack z={z} push={!shared} covered={covered}>
+      <SwipeBack z={z} push={!shared} covered={covered} guard={guard}>
         <RecipeDetail id={route.id} shared={shared} />
       </SwipeBack>
     )
   }
   return (
-    <SwipeBack z={z} push covered={covered}>
+    <SwipeBack z={z} push covered={covered} guard={guard}>
       {route.name === 'profile' ? <Profile id={route.id} /> : <Settings />}
     </SwipeBack>
   )
 }
 
 /** Screen that slides in from the right and can be swiped back from the left edge (iOS has no back button). */
-function SwipeBack({ children, z, push, covered }: { children: ReactNode; z: number; push: boolean; covered: boolean }) {
+function SwipeBack({ children, z, push, covered, guard }: { children: ReactNode; z: number; push: boolean; covered: boolean; guard?: CSSProperties }) {
   const controls = useDragControls()
   const anim = push
     ? { initial: { x: '100%' }, animate: { x: 0 }, exit: { x: '100%' } }
@@ -102,7 +105,7 @@ function SwipeBack({ children, z, push, covered }: { children: ReactNode; z: num
   return (
     <motion.div
       className="layer"
-      style={{ zIndex: z, boxShadow: push ? '-12px 0 40px rgba(0,0,0,.14)' : undefined }}
+      style={{ zIndex: z, boxShadow: push ? '-12px 0 40px rgba(0,0,0,.14)' : undefined, ...guard }}
       {...anim}
       transition={{ type: 'spring', stiffness: 380, damping: 40 }}
       drag="x"

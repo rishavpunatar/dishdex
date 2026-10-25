@@ -6,7 +6,7 @@ import { usePhoto } from '../lib/photos'
 import { go } from '../lib/router'
 import { isNew, makeInvite, markAllSeen, syncNow, toast, useApp } from '../lib/store'
 import { CUISINES, cuisineById, DISH_TYPES, type Recipe } from '../lib/types'
-import { CuisineBadge, dexNo, DishArt, fmtMinutes, Sheet, KnownDots, Logo, spring, SyncStatus, TempTag, TypeBadge, useDexNumbers, usePeople } from './bits'
+import { CuisineBadge, dexNo, DishArt, fmtMinutes, Sheet, useExitGuard, KnownDots, Logo, spring, SyncStatus, TempTag, TypeBadge, useDexNumbers, usePeople } from './bits'
 import { DexCard, MedalSheet } from './Medals'
 import { AddDishSheet, Elapsed } from './AddDish'
 import { finishImport, type PendingImport } from '../lib/importer'
@@ -403,6 +403,7 @@ export function CardImage({ r }: { r: Recipe }) {
 
 function RecipeCard({ r, no, index, fresh }: { r: Recipe; no: number; index: number; fresh: boolean }) {
   const t = r.types[0] ? DISH_TYPES.find((x) => x.id === r.types[0]) : undefined
+  const guard = useExitGuard()
   return (
     <motion.button
       className="card"
@@ -414,6 +415,7 @@ function RecipeCard({ r, no, index, fresh }: { r: Recipe; no: number; index: num
       whileTap={{ scale: 0.97 }}
       onClick={() => { tap(); go(`/r/${r.id}`) }}
       aria-label={`${dexNo(no)} ${r.title}`}
+      style={guard}
     >
       <motion.div className="card-media" layoutId={`media-${r.id}`} style={{ borderRadius: 22 }} transition={spring}>
         <CardImage r={r} />

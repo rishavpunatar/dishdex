@@ -1,9 +1,21 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { execSync } from 'node:child_process'
+
+// Shown in Settings so we can tell which version a phone is actually running.
+const sha = (process.env.GITHUB_SHA ?? (() => {
+  try {
+    return execSync('git rev-parse HEAD').toString()
+  } catch {
+    return 'dev'
+  }
+})()).trim().slice(0, 7)
+const BUILD = `${new Date().toISOString().slice(0, 16).replace('T', ' ')} · ${sha}`
 
 export default defineConfig({
   base: '/dishdex/',
+  define: { __BUILD__: JSON.stringify(BUILD) },
   plugins: [
     react(),
     VitePWA({

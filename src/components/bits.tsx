@@ -1,4 +1,4 @@
-import { animate, AnimatePresence, motion, useMotionValue } from 'motion/react'
+import { animate, AnimatePresence, motion, useIsPresent, useMotionValue } from 'motion/react'
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { tap } from '../lib/device'
 import { useApp } from '../lib/store'
@@ -6,6 +6,25 @@ import { cuisineById, typeById, type Person, type PersonId, type Recipe } from '
 import { Icon } from './Icon'
 
 export const cssVar = (vars: Record<string, string | number>) => vars as CSSProperties
+
+/**
+ * Something that is animating away must never catch taps. A closing screen,
+ * sheet or overlay stays mounted until its exit animation finishes; if that
+ * animation stalls (iPhone backgrounding mid-animation can do it) an invisible
+ * full-screen layer would swallow every tap. So: stop taking taps the moment
+ * the exit starts, and hide outright if it hasn't finished within a second.
+ */
+export function useExitGuard(): CSSProperties | undefined {
+  const isPresent = useIsPresent()
+  const [hidden, setHidden] = useState(false)
+  useEffect(() => {
+    if (isPresent) return setHidden(false)
+    const t = setTimeout(() => setHidden(true), 1000)
+    return () => clearTimeout(t)
+  }, [isPresent])
+  if (isPresent) return undefined
+  return hidden ? { pointerEvents: 'none', visibility: 'hidden' } : { pointerEvents: 'none' }
+}
 
 export const spring = { type: 'spring', stiffness: 420, damping: 38, mass: 0.9 } as const
 export const softSpring = { type: 'spring', stiffness: 260, damping: 30 } as const
@@ -155,15 +174,29 @@ export function Sheet({ open, onClose, children, label }: { open: boolean; onClo
     <AnimatePresence>
       {open && (
         <>
-          <motion.div className="scrim" key="scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
-          <motion.div key="sheet" className="sheet-wrap" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={spring}>
+          <Scrim key="scrim" onClick={onClose} />
+          <SheetWrap key="sheet">
             <SheetBody label={label} onClose={onClose}>
               {children}
             </SheetBody>
-          </motion.div>
+          </SheetWrap>
         </>
       )}
     </AnimatePresence>
+  )
+}
+
+function Scrim({ onClick }: { onClick: () => void }) {
+  const guard = useExitGuard()
+  return <motion.div className="scrim" style={guard} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClick} />
+}
+
+function SheetWrap({ children }: { children: ReactNode }) {
+  const guard = useExitGuard()
+  return (
+    <motion.div className="sheet-wrap" style={guard} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={spring}>
+      {children}
+    </motion.div>
   )
 }
 
