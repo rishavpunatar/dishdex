@@ -61,7 +61,7 @@ createRoot(document.getElementById('root')!).render(
 
 if (import.meta.env.PROD) {
   void Promise.all([import('virtual:pwa-register'), import('./lib/router')]).then(([{ registerSW }, router]) => {
-    const editing = () => router.currentStack().some((p) => p.startsWith('/new') || p.startsWith('/edit'))
+    const editing = () => router.currentStack().some((p) => p.startsWith('/new') || p.startsWith('/edit') || p.startsWith('/import'))
     // A new version has taken over: reload into it straight away, unless a dish is mid-edit.
     const reloadWhenIdle = () => {
       const go = () => {

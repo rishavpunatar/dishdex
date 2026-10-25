@@ -6,8 +6,10 @@ import { usePhoto } from '../lib/photos'
 import { go } from '../lib/router'
 import { isNew, makeInvite, markAllSeen, syncNow, toast, useApp } from '../lib/store'
 import { CUISINES, cuisineById, DISH_TYPES, type Recipe } from '../lib/types'
-import { CuisineBadge, dexNo, DishArt, fmtMinutes, KnownDots, Logo, spring, SyncStatus, TempTag, TypeBadge, useDexNumbers, usePeople } from './bits'
+import { CuisineBadge, dexNo, DishArt, fmtMinutes, Sheet, KnownDots, Logo, spring, SyncStatus, TempTag, TypeBadge, useDexNumbers, usePeople } from './bits'
 import { DexCard, MedalSheet } from './Medals'
+import { AddDishSheet, Elapsed } from './AddDish'
+import { finishImport, type PendingImport } from '../lib/importer'
 import type { Tier } from '../lib/tiers'
 import { ReconnectSheet } from './Connection'
 import { Icon, IosShareGlyph } from './Icon'
@@ -27,6 +29,7 @@ export function Dex({ inert }: { inert: boolean }) {
   const [temp, setTemp] = useState<'hot' | 'cold' | null>(null)
   const [cuisine, setCuisine] = useState<string | null>(null)
   const [medal, setMedal] = useState<Tier | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
   const [sort, setSort] = useState<Sort>('no')
   const [view, setViewState] = useState(prefs.view())
   const [stuck, setStuck] = useState(false)
@@ -222,7 +225,7 @@ export function Dex({ inert }: { inert: boolean }) {
         )}
 
         {all.length === 0 ? (
-          <EmptyDex partnerName={partner?.name} />
+          <EmptyDex partnerName={partner?.name} onAdd={() => setAddOpen(true)} />
         ) : list.length === 0 ? (
           <div className="empty">
             <Icon name="search" size={40} stroke={1.4} className="faint" />
@@ -259,7 +262,7 @@ export function Dex({ inert }: { inert: boolean }) {
             exit={{ y: 90, opacity: 0 }}
             whileTap={{ scale: 0.95 }}
             transition={spring}
-            onClick={() => { tap(); go('/new') }}
+            onClick={() => { tap(); setAddOpen(true) }}
           >
             <Icon name="plus" size={22} stroke={2.6} />
             Log a dish
@@ -267,6 +270,7 @@ export function Dex({ inert }: { inert: boolean }) {
         )}
       </AnimatePresence>
       <ReconnectSheet open={reconnectOpen} onClose={() => setReconnectOpen(false)} />
+      <AddDishSheet open={addOpen} onClose={() => setAddOpen(false)} />
       <MedalSheet
         tier={medal}
         onClose={() => setMedal(null)}
@@ -296,43 +300,87 @@ function AuthBanner({ onFix }: { onFix: () => void }) {
   )
 }
 
-/** What changed since you last looked: dishes sent to you, and the other person's new or edited dishes. */
+/** Imports in flight or ready to review, then dishes the other person added or edited since you last looked. */
 function ForYou({ all }: { all: Recipe[] }) {
   const seen = useApp((s) => s.seen)
+  const imports = useApp((s) => s.imports)
   const { me, byId } = usePeople()
+  const [failed, setFailed] = useState<PendingImport | null>(null)
   if (!me) return null
   const fresh = all.filter((r) => isNew(r, me, seen)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   const items = fresh
     .map((r) => ({ r, line: seen[r.id] ? `Updated by ${byId(r.updatedBy)?.name ?? 'someone'}` : `New from ${byId(r.updatedBy)?.name ?? 'someone'}` }))
     .slice(0, 10)
+  const show = imports.length > 0 || items.length > 0
   return (
-    <AnimatePresence initial={false}>
-      {items.length > 0 && (
-        <motion.section className="foryou" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={spring}>
-          <div className="foryou-head">
-            <span className="eyebrow">New in the dex</span>
-            {fresh.length > 0 && (
-              <button className="link" style={{ fontSize: 13 }} onClick={() => { tap(); markAllSeen() }}>
-                Mark seen
-              </button>
-            )}
-          </div>
-          <div className="foryou-row">
-            {items.map(({ r, line }) => (
-              <motion.button key={r.id} layout className="fy-card" whileTap={{ scale: 0.97 }} onClick={() => { tap(); go(`/r/${r.id}/fresh`) }}>
-                <span className="fy-thumb">
-                  <CardImage r={r} />
-                </span>
-                <span className="fy-text">
-                  <span className="fy-title">{r.title}</span>
-                  <span className="fy-sub">{line}</span>
-                </span>
-              </motion.button>
-            ))}
-          </div>
-        </motion.section>
-      )}
-    </AnimatePresence>
+    <>
+      <AnimatePresence initial={false}>
+        {show && (
+          <motion.section className="foryou" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={spring}>
+            <div className="foryou-head">
+              <span className="eyebrow">For you</span>
+              {fresh.length > 0 && (
+                <button className="link" style={{ fontSize: 13 }} onClick={() => { tap(); markAllSeen() }}>
+                  Mark seen
+                </button>
+              )}
+            </div>
+            <div className="foryou-row">
+              {imports.map((it) => (
+                <motion.button
+                  key={it.id}
+                  layout
+                  className={`fy-card fy-import${it.status === 'ready' ? ' ready' : ''}`}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    tap()
+                    if (it.status === 'ready') go(`/import/${it.id}`)
+                    else if (it.status === 'error') setFailed(it)
+                  }}
+                >
+                  <span className="fy-thumb fy-import-ic" data-status={it.status}>
+                    {it.status === 'working' && <span className="working-ring" />}
+                    <Icon name={it.status === 'error' ? 'close' : it.status === 'ready' ? 'sparkle' : it.kind === 'photo' ? 'camera' : it.kind === 'url' ? 'link' : 'copy'} size={20} />
+                  </span>
+                  <span className="fy-text">
+                    <span className="fy-title">{it.label}</span>
+                    <span className="fy-sub">
+                      {it.status === 'working' ? <Elapsed since={it.at} prefix="Importing… " /> : it.status === 'ready' ? 'Ready to review' : 'Couldn’t import — tap'}
+                    </span>
+                  </span>
+                </motion.button>
+              ))}
+              {items.map(({ r, line }) => (
+                <motion.button key={r.id} layout className="fy-card" whileTap={{ scale: 0.97 }} onClick={() => { tap(); go(`/r/${r.id}/fresh`) }}>
+                  <span className="fy-thumb">
+                    <CardImage r={r} />
+                  </span>
+                  <span className="fy-text">
+                    <span className="fy-title">{r.title}</span>
+                    <span className="fy-sub">{line}</span>
+                  </span>
+                </motion.button>
+              ))}
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
+      <Sheet open={!!failed} onClose={() => setFailed(null)} label="Import failed">
+        <h3>Couldn’t import that</h3>
+        <p>{failed?.error}</p>
+        <div className="sheet-actions">
+          <button
+            className="btn btn-primary btn-block"
+            onClick={() => {
+              if (failed) void finishImport(failed.id)
+              setFailed(null)
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      </Sheet>
+    </>
   )
 }
 
@@ -418,7 +466,7 @@ export function RecipeRow({ r, no, fresh, onOpen }: { r: Recipe; no: number; fre
   )
 }
 
-function EmptyDex({ partnerName }: { partnerName?: string }) {
+function EmptyDex({ partnerName, onAdd }: { partnerName?: string; onAdd: () => void }) {
   return (
     <div className="empty">
       <motion.div initial={{ scale: 0.8, opacity: 0, rotate: -8 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} transition={{ ...spring, delay: 0.1 }}>
@@ -428,7 +476,7 @@ function EmptyDex({ partnerName }: { partnerName?: string }) {
       <p>
         Log the first dish one of you can cook. {partnerName ? `It’ll show up on ${partnerName}’s phone too.` : ''}
       </p>
-      <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={() => go('/new')}>
+      <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onAdd}>
         <Icon name="plus" size={20} stroke={2.6} /> Log the first dish
       </button>
     </div>

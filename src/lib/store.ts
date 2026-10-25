@@ -18,6 +18,7 @@ import { clearStashedInvite, readStashedInvite, stashInvite } from './handoff'
 import { isIOS, isStandalone } from './device'
 import type { Connection, Person, PersonId, Profiles, Recipe } from './types'
 import type { Tier } from './tiers'
+import type { PendingImport } from './importer'
 
 export type Phase = 'boot' | 'welcome' | 'setup' | 'whoami' | 'ready'
 export type SyncState = 'idle' | 'syncing' | 'synced' | 'offline' | 'error' | 'auth'
@@ -43,6 +44,8 @@ interface AppState {
   collected: number
   /** A medal someone asked to collect from the medal sheet. */
   celebrate: Tier | null
+  /** Recipe imports in flight or waiting to be reviewed (this phone only). */
+  imports: PendingImport[]
 }
 
 export const useApp = create<AppState>(() => ({
@@ -58,6 +61,7 @@ export const useApp = create<AppState>(() => ({
   pendingInvite: null,
   collected: prefs.collected(),
   celebrate: null,
+  imports: [],
 }))
 
 const S = () => useApp.getState()
@@ -262,7 +266,7 @@ export async function disconnect() {
   remote = null
   meta = { head: null, shas: {} }
   outbox = []
-  setS({ conn: null, me: null, profiles: null, recipes: {}, seen: {}, collected: 0, sync: { state: 'idle', pending: 0 } })
+  setS({ conn: null, me: null, profiles: null, recipes: {}, seen: {}, collected: 0, imports: [], sync: { state: 'idle', pending: 0 } })
   decidePhase()
 }
 
@@ -451,6 +455,9 @@ export const isNew = (r: Recipe, me: PersonId | null, seen: Record<string, strin
   !!me && r.updatedBy !== me && seen[r.id] !== r.updatedAt
 
 /* ---------------------------------------------------------------- sync engine */
+
+/** Delete repo files that aren't dishes (e.g. finished imports), via the outbox so it survives offline. */
+export const enqueueDeletes = (paths: string[]) => enqueue(paths.map((path) => ({ opId: newOpId(), kind: 'deletePhoto' as const, path })))
 
 async function enqueue(ops: Op[]) {
   outbox.push(...ops)

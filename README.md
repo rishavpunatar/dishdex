@@ -23,6 +23,18 @@ profiles.json         the two people (name, emoji, colour)
 
 The access key is a fine-grained GitHub token limited to that one repo (Contents: read and write). It stays on the phones and is only ever sent to `api.github.com`. There are no analytics and no third-party scripts, and the fonts are bundled.
 
+## Importing recipes
+
+"Log a dish" offers four ways in: write it, **paste a recipe**, **a link**, or **a cookbook photo**. Every import opens in the editor for review; nothing is saved until you press Save.
+
+- **Pasted text** is parsed on the phone when it has a recognisable shape (headings, numbered steps, quantities).
+- **Links, cookbook photos and messy text** go to an importer workflow in the private data repo (`.github/workflows/import.yml`). It runs on GitHub's free runners with open-source models only, so nothing goes to a third-party AI:
+  - links: the page's schema.org Recipe JSON-LD (most recipe sites), otherwise the page text goes to the model;
+  - photos: PP-OCRv6 via RapidOCR (ONNX, CPU), with column-aware reading order for two-column cookbook layouts;
+  - structuring: Qwen3.5-4B (Apache-2.0) in llama.cpp, with output constrained to a JSON schema.
+- The app writes `imports/<id>/request.json` (plus `page-N.jpg`). The workflow writes `result.json`, the app polls for it, and the files are deleted once the dish is saved or discarded.
+- Rough timings on a 2-core runner: links with JSON-LD take seconds; pasted text about 1–2 minutes; cookbook photos about 2–4 minutes. The model is cached between runs.
+
 ## Setup
 
 1. **Data repo.** A private repo, for example `you/dishdex-data`. The repo variable `DISHDEX_DATA_REPO` pre-fills it in the app.

@@ -1,5 +1,6 @@
 import { createStore, del, delMany, entries, get, set, setMany, clear, type UseStore } from 'idb-keyval'
 import type { Connection, PersonId, Profiles, Recipe } from './types'
+import type { PendingImport } from './importer'
 import type { Op } from './ops'
 
 /**
@@ -103,9 +104,11 @@ export const prefs = {
   /** Highest milestone whose medal this phone has collected. */
   collected: () => lsGet<number>('collected') ?? 0,
   setCollected: (n: number) => lsSet('collected', n),
+  imports: () => lsGet<PendingImport[]>('imports') ?? [],
+  setImports: (v: PendingImport[]) => lsSet('imports', v),
   installDismissed: () => !!lsGet<boolean>('installDismissed'),
   setInstallDismissed: () => lsSet('installDismissed', true),
   clearAll() {
-    for (const k of ['conn', 'me', 'seen', 'collected']) lsSet(k, null)
+    for (const k of ['conn', 'me', 'seen', 'collected', 'imports']) lsSet(k, null)
   },
 }

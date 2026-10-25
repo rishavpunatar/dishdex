@@ -5,22 +5,26 @@ import { processPhoto } from '../lib/image'
 import { usePhoto } from '../lib/photos'
 import { back, home, replace } from '../lib/router'
 import { deleteRecipe, saveRecipe, toast, useApp, type DraftPhoto } from '../lib/store'
+import { finishImport } from '../lib/importer'
 import { CUISINES, DISH_TYPES } from '../lib/types'
 import { Avatar, cssVar, fmtMinutes, Sheet, Stepper, usePeople } from './bits'
 import { Icon } from './Icon'
 
-export function Editor({ id }: { id?: string }) {
+export function Editor({ id, importId }: { id?: string; importId?: string }) {
   const original = useApp((s) => (id ? s.recipes[id] : undefined)) ?? null
+  // An import fills the form in; nothing is saved until Save.
+  const imported = useApp((s) => (importId ? s.imports.find((i) => i.id === importId) : undefined))
+  const seed = original ? undefined : imported?.recipe
   const { people, me } = usePeople()
-  const [title, setTitle] = useState(original?.title ?? '')
-  const [servings, setServings] = useState(original?.servings ?? 2)
-  const [minutes, setMinutes] = useState<number | undefined>(original?.minutes)
-  const [temp, setTemp] = useState<'hot' | 'cold' | undefined>(original?.temp)
-  const [cuisine, setCuisine] = useState<string | undefined>(original?.cuisine)
-  const [types, setTypes] = useState<string[]>(original?.types ?? [])
-  const [ingredients, setIngredients] = useState<string[]>(original?.ingredients.length ? original.ingredients : [''])
-  const [steps, setSteps] = useState<string[]>(original?.steps.length ? original.steps : [''])
-  const [notes, setNotes] = useState(original?.notes ?? '')
+  const [title, setTitle] = useState(original?.title ?? seed?.title ?? '')
+  const [servings, setServings] = useState(original?.servings ?? (seed?.servings || 2))
+  const [minutes, setMinutes] = useState<number | undefined>(original?.minutes ?? (seed?.minutes || undefined))
+  const [temp, setTemp] = useState<'hot' | 'cold' | undefined>(original?.temp ?? (seed?.temp || undefined))
+  const [cuisine, setCuisine] = useState<string | undefined>(original?.cuisine ?? (seed?.cuisine || undefined))
+  const [types, setTypes] = useState<string[]>(original?.types ?? seed?.types?.slice(0, 2) ?? [])
+  const [ingredients, setIngredients] = useState<string[]>(original?.ingredients.length ? original.ingredients : seed?.ingredients.length ? seed.ingredients : [''])
+  const [steps, setSteps] = useState<string[]>(original?.steps.length ? original.steps : seed?.steps.length ? seed.steps : [''])
+  const [notes, setNotes] = useState(original?.notes ?? seed?.notes ?? '')
   const [knownBy, setKnownBy] = useState<string[]>(original?.knownBy ?? (me ? [me] : []))
   const [photo, setPhoto] = useState<'keep' | 'remove' | DraftPhoto>('keep')
   const [busy, setBusy] = useState(false)
@@ -80,6 +84,7 @@ export function Editor({ id }: { id?: string }) {
         toast('Saved')
         back()
       } else {
+        if (importId) void finishImport(importId)
         toast('Logged to the dex ✨')
         replace(`/r/${newId}/fresh`)
       }
@@ -105,13 +110,25 @@ export function Editor({ id }: { id?: string }) {
           <button className="btn btn-ghost btn-sm" onClick={cancel}>
             Cancel
           </button>
-          <h2>{original ? 'Edit dish' : 'New dish'}</h2>
+          <h2>{original ? 'Edit dish' : seed ? 'Review import' : 'New dish'}</h2>
           <button className="btn btn-primary btn-sm" disabled={!canSave} onClick={() => void save()}>
             {busy ? 'Saving…' : 'Save'}
           </button>
         </div>
 
         <div className="ed-body">
+          {seed && (
+            <div className="import-note">
+              <Icon name="sparkle" size={16} />
+              <span>
+                {imported?.kind === 'photo'
+                  ? 'Read from your cookbook photo. Check the quantities, then add a photo of your own when you cook it.'
+                  : imported?.kind === 'url'
+                    ? `Imported from ${imported.label}. Give it a once-over, then save.`
+                    : 'Filled in from your pasted text. Give it a once-over, then save.'}
+              </span>
+            </div>
+          )}
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => void pick(e.target.files?.[0])} />
           <div className={`photo-tile${preview ? '' : ' empty-tile'}`}>
             <button type="button" className="photo-hit" onClick={() => fileRef.current?.click()} aria-label={preview ? 'Change photo' : 'Add a photo'}>
@@ -245,11 +262,23 @@ export function Editor({ id }: { id?: string }) {
       </motion.div>
 
       <Sheet open={confirm === 'discard'} onClose={() => setConfirm(null)} label="Discard changes">
-        <h3>Discard changes?</h3>
-        <p>What you’ve typed won’t be saved.</p>
+        <h3>{seed ? 'Leave this import?' : 'Discard changes?'}</h3>
+        <p>{seed ? 'Keep it for later and it stays at the top of the dex, ready to review.' : 'What you’ve typed won’t be saved.'}</p>
         <div className="sheet-actions">
-          <button className="btn btn-primary btn-block" onClick={() => { setConfirm(null); back() }}>
-            Discard
+          {seed && importId && (
+            <button className="btn btn-primary btn-block" onClick={() => { setConfirm(null); back() }}>
+              Keep for later
+            </button>
+          )}
+          <button
+            className={`btn btn-block ${seed ? 'btn-ghost danger' : 'btn-primary'}`}
+            onClick={() => {
+              setConfirm(null)
+              if (importId) void finishImport(importId)
+              back()
+            }}
+          >
+            {seed ? 'Discard import' : 'Discard'}
           </button>
           <button className="btn btn-ghost btn-block" onClick={() => setConfirm(null)}>
             Keep editing

@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react'
 export type Route =
   | { name: 'recipe'; id: string; fresh?: boolean }
   | { name: 'new' }
+  | { name: 'import'; id: string }
   | { name: 'edit'; id: string }
   | { name: 'profile'; id: string }
   | { name: 'settings' }
@@ -11,6 +12,7 @@ export function parseRoute(path: string): Route | null {
   const [a, b, c] = path.replace(/^#?\/?/, '').split('/')
   if (a === 'r' && b) return { name: 'recipe', id: decodeURIComponent(b), fresh: c === 'fresh' }
   if (a === 'new') return { name: 'new' }
+  if (a === 'import' && b) return { name: 'import', id: decodeURIComponent(b) }
   if (a === 'edit' && b) return { name: 'edit', id: decodeURIComponent(b) }
   if (a === 'p' && b) return { name: 'profile', id: decodeURIComponent(b) }
   if (a === 'settings') return { name: 'settings' }

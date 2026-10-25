@@ -40,3 +40,9 @@ export async function processPhoto(file: Blob): Promise<DraftPhoto> {
   const thumb = draw(img, 480).toDataURL('image/jpeg', 0.7)
   return { blob, w: full.width, h: full.height, thumb }
 }
+
+/** Cookbook pages for OCR: big enough to read small print, small enough to upload quickly. */
+export async function processForOcr(file: Blob): Promise<Blob> {
+  const img = await loadImg(file)
+  return toBlob(draw(img, 2200), 0.85)
+}

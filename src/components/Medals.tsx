@@ -201,7 +201,7 @@ export function Celebration() {
   const request = useApp((s) => s.celebrate)
   const stack = useStack()
   const [tier, setTier] = useState<Tier | null>(null)
-  const editing = stack.some((p) => p.startsWith('/new') || p.startsWith('/edit'))
+  const editing = stack.some((p) => p.startsWith('/new') || p.startsWith('/edit') || p.startsWith('/import'))
 
   useEffect(() => {
     if (request && !tier) {

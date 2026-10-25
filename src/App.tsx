@@ -11,6 +11,7 @@ import { Settings } from './components/Settings'
 import { prefs } from './lib/local'
 import { back, clearUrlHash, parseRoute, useStack, type Route } from './lib/router'
 import { boot, toast, useApp } from './lib/store'
+import { resumeImports } from './lib/importer'
 import { stashInvite } from './lib/handoff'
 import { isIOS, isStandalone } from './lib/device'
 
@@ -30,6 +31,7 @@ export function App() {
       if (isIOS() && !isStandalone()) void stashInvite(initialInvite)
     }
     void boot().then(() => {
+      resumeImports()
       if (initialInvite && useApp.getState().phase === 'ready') toast('This phone is already connected')
       try {
         if (sessionStorage.getItem('dishdex:updated')) {
@@ -68,10 +70,10 @@ export function App() {
 
 function Layer({ route, index, covered }: { route: Route; index: number; covered: boolean }) {
   const z = 100 + index * 10
-  if (route.name === 'new' || route.name === 'edit') {
+  if (route.name === 'new' || route.name === 'edit' || route.name === 'import') {
     return (
       <div className="layer" style={{ zIndex: z }} inert={covered}>
-        <Editor id={route.name === 'edit' ? route.id : undefined} />
+        <Editor id={route.name === 'edit' ? route.id : undefined} importId={route.name === 'import' ? route.id : undefined} />
       </div>
     )
   }
