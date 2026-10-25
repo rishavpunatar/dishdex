@@ -6,16 +6,52 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 
-// iOS keeps fixed elements behind the keyboard; lift bottom sheets by the keyboard's height.
+/*
+ * iPhone keyboard handling. Safari scrolls the whole page to reveal a focused
+ * field and doesn't always put it back, which leaves taps landing off-target
+ * (buttons "don't work"). Every screen here scrolls itself, so keep the page
+ * pinned, and lift bottom sheets above the keyboard.
+ */
+const isTextField = (el: Element | null) =>
+  !!el &&
+  (el.tagName === 'TEXTAREA' ||
+    (el.tagName === 'INPUT' && !['button', 'checkbox', 'radio', 'file', 'submit', 'range'].includes((el as HTMLInputElement).type)) ||
+    (el as HTMLElement).isContentEditable)
+const pin = () => {
+  if (window.scrollX || window.scrollY) window.scrollTo(0, 0)
+}
 const vv = window.visualViewport
 if (vv) {
   const update = () => {
     const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
     document.documentElement.style.setProperty('--kb', `${kb > 80 ? kb : 0}px`)
   }
-  vv.addEventListener('resize', update)
+  vv.addEventListener('resize', () => {
+    update()
+    // Keyboard just opened: keep the field in view inside its own scroller.
+    const el = document.activeElement
+    if (isTextField(el)) requestAnimationFrame(() => (el as HTMLElement).scrollIntoView({ block: 'center' }))
+  })
   vv.addEventListener('scroll', update)
 }
+window.addEventListener('scroll', () => {
+  if (!isTextField(document.activeElement)) pin()
+})
+document.addEventListener('focusout', () =>
+  setTimeout(() => {
+    if (!isTextField(document.activeElement)) pin()
+  }, 80),
+)
+// Tapping a button while typing: don't let the keyboard closing shift the page
+// between the finger landing and the tap registering.
+document.addEventListener(
+  'mousedown',
+  (e) => {
+    const t = e.target as HTMLElement | null
+    if (t?.closest('button, [role="button"]') && isTextField(document.activeElement)) e.preventDefault()
+  },
+  true,
+)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -23,6 +23,11 @@ function s() {
   return stores
 }
 
+interface StoredImage {
+  type: string
+  buf: ArrayBuffer
+}
+
 export interface SyncMeta {
   head: string | null
   /** path -> blob sha we last saw / wrote */
@@ -37,8 +42,21 @@ export const db = {
   putRecipes: (rs: Recipe[]) => setMany(rs.map((r) => [r.id, r]), s().recipes),
   deleteRecipes: (ids: string[]) => delMany(ids, s().recipes),
 
-  getImage: (path: string) => get<Blob>(path, s().images),
-  putImage: (path: string, blob: Blob) => set(path, blob, s().images),
+  /**
+   * Photos are stored as raw bytes, not Blobs: Safari/WebKit can fail to put a
+   * Blob into IndexedDB (the write errors with null), which broke saving dishes
+   * with photos on iPhone. Older Blob entries (Android) are still read.
+   */
+  async getImage(path: string): Promise<Blob | undefined> {
+    const v = await get<Blob | StoredImage>(path, s().images)
+    if (!v) return undefined
+    if (v instanceof Blob) return v
+    return new Blob([v.buf], { type: v.type })
+  },
+  async putImage(path: string, blob: Blob) {
+    const rec: StoredImage = { type: blob.type || 'image/jpeg', buf: await blob.arrayBuffer() }
+    await set(path, rec, s().images)
+  },
   deleteImage: (path: string) => del(path, s().images),
 
   async meta(): Promise<SyncMeta> {

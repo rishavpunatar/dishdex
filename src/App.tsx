@@ -57,7 +57,7 @@ export function App() {
       <AnimatePresence>
         {stack.map((path, i) => {
           const route = parseRoute(path)
-          return route ? <Layer key={`${i}:${path}`} route={route} index={i} /> : null
+          return route ? <Layer key={`${i}:${path}`} route={route} index={i} covered={i < stack.length - 1} /> : null
         })}
       </AnimatePresence>
       <Celebration />
@@ -66,11 +66,11 @@ export function App() {
   )
 }
 
-function Layer({ route, index }: { route: Route; index: number }) {
+function Layer({ route, index, covered }: { route: Route; index: number; covered: boolean }) {
   const z = 100 + index * 10
   if (route.name === 'new' || route.name === 'edit') {
     return (
-      <div className="layer" style={{ zIndex: z }}>
+      <div className="layer" style={{ zIndex: z }} inert={covered}>
         <Editor id={route.name === 'edit' ? route.id : undefined} />
       </div>
     )
@@ -79,20 +79,20 @@ function Layer({ route, index }: { route: Route; index: number }) {
     // Straight off the card grid, the photo flies from its card into the hero.
     const shared = index === 0 && !route.fresh && prefs.view() === 'grid'
     return (
-      <SwipeBack z={z} push={!shared}>
+      <SwipeBack z={z} push={!shared} covered={covered}>
         <RecipeDetail id={route.id} shared={shared} />
       </SwipeBack>
     )
   }
   return (
-    <SwipeBack z={z} push>
+    <SwipeBack z={z} push covered={covered}>
       {route.name === 'profile' ? <Profile id={route.id} /> : <Settings />}
     </SwipeBack>
   )
 }
 
 /** Screen that slides in from the right and can be swiped back from the left edge (iOS has no back button). */
-function SwipeBack({ children, z, push }: { children: ReactNode; z: number; push: boolean }) {
+function SwipeBack({ children, z, push, covered }: { children: ReactNode; z: number; push: boolean; covered: boolean }) {
   const controls = useDragControls()
   const anim = push
     ? { initial: { x: '100%' }, animate: { x: 0 }, exit: { x: '100%' } }
@@ -112,6 +112,7 @@ function SwipeBack({ children, z, push }: { children: ReactNode; z: number; push
       onDragEnd={(_, info) => {
         if (info.offset.x > 110 || info.velocity.x > 600) back()
       }}
+      inert={covered}
     >
       <div className="layer-edge" onPointerDown={(e) => controls.start(e)} />
       {children}

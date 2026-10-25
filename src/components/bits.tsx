@@ -1,5 +1,5 @@
-import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { animate, AnimatePresence, motion, useMotionValue } from 'motion/react'
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { tap } from '../lib/device'
 import { useApp } from '../lib/store'
 import { cuisineById, typeById, type Person, type PersonId, type Recipe } from '../lib/types'
@@ -156,29 +156,55 @@ export function Sheet({ open, onClose, children, label }: { open: boolean; onClo
       {open && (
         <>
           <motion.div className="scrim" key="scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
-          <motion.div
-            key="sheet"
-            className="sheet"
-            role="dialog"
-            aria-label={label}
-            aria-modal="true"
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={spring}
-            drag="y"
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0, bottom: 0.8 }}
-            onDragEnd={(_, i) => {
-              if (i.offset.y > 110 || i.velocity.y > 700) onClose()
-            }}
-          >
-            <div className="sheet-handle" />
-            {children}
+          <motion.div key="sheet" className="sheet-wrap" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={spring}>
+            <SheetBody label={label} onClose={onClose}>
+              {children}
+            </SheetBody>
           </motion.div>
         </>
       )}
     </AnimatePresence>
+  )
+}
+
+/**
+ * Drag-to-dismiss from the handle only. Dragging the whole sheet (as before)
+ * swallowed touches on iPhone: fields inside couldn't be tapped and long
+ * sheets couldn't scroll.
+ */
+function SheetBody({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
+  const y = useMotionValue(0)
+  const drag = useRef<{ y0: number; t: number } | null>(null)
+  const settle = () => void animate(y, 0, spring)
+  return (
+    <motion.div className="sheet" role="dialog" aria-label={label} aria-modal="true" style={{ y }}>
+      <div
+        className="sheet-grab"
+        onPointerDown={(e) => {
+          drag.current = { y0: e.clientY, t: performance.now() }
+          e.currentTarget.setPointerCapture(e.pointerId)
+        }}
+        onPointerMove={(e) => {
+          if (drag.current) y.set(Math.max(0, e.clientY - drag.current.y0))
+        }}
+        onPointerUp={(e) => {
+          const d = drag.current
+          drag.current = null
+          if (!d) return
+          const dy = e.clientY - d.y0
+          const speed = (dy / Math.max(1, performance.now() - d.t)) * 1000
+          if (dy > 100 || (dy > 20 && speed > 700)) onClose()
+          else settle()
+        }}
+        onPointerCancel={() => {
+          drag.current = null
+          settle()
+        }}
+      >
+        <div className="sheet-handle" />
+      </div>
+      {children}
+    </motion.div>
   )
 }
 
