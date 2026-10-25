@@ -31,6 +31,14 @@ export function App() {
     }
     void boot().then(() => {
       if (initialInvite && useApp.getState().phase === 'ready') toast('This phone is already connected')
+      try {
+        if (sessionStorage.getItem('dishdex:updated')) {
+          sessionStorage.removeItem('dishdex:updated')
+          toast('Dishdex is up to date ✨')
+        }
+      } catch {
+        /* private mode */
+      }
     })
   }, [])
 

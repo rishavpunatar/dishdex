@@ -24,16 +24,43 @@ createRoot(document.getElementById('root')!).render(
 )
 
 if (import.meta.env.PROD) {
-  void import('virtual:pwa-register').then(({ registerSW }) => {
-    // Apply app updates when the app is backgrounded, never mid-edit.
-    let ready = false
-    const update = registerSW({
-      onNeedRefresh() {
-        ready = true
+  void Promise.all([import('virtual:pwa-register'), import('./lib/router')]).then(([{ registerSW }, router]) => {
+    const editing = () => router.currentStack().some((p) => p.startsWith('/new') || p.startsWith('/edit'))
+    // A new version has taken over: reload into it straight away, unless a dish is mid-edit.
+    const reloadWhenIdle = () => {
+      const go = () => {
+        try {
+          sessionStorage.setItem('dishdex:updated', '1')
+        } catch {
+          /* private mode */
+        }
+        location.reload()
+      }
+      if (!editing()) return go()
+      const off = router.subscribe(() => {
+        if (!editing()) {
+          off()
+          go()
+        }
+      })
+    }
+    registerSW({
+      immediate: true,
+      onNeedReload: reloadWhenIdle,
+      onRegisteredSW(_url, reg) {
+        if (!reg) return
+        // Phones resume apps from the background rather than relaunching them,
+        // so look for a new version every time the app comes back on screen.
+        const check = () => {
+          if (navigator.onLine) reg.update().catch(() => {})
+        }
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') check()
+        })
+        setInterval(() => {
+          if (document.visibilityState === 'visible') check()
+        }, 30 * 60_000)
       },
-    })
-    document.addEventListener('visibilitychange', () => {
-      if (ready && document.visibilityState === 'hidden') void update(true)
     })
   })
   void navigator.storage?.persist?.()

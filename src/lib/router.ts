@@ -73,8 +73,9 @@ export function clearUrlHash() {
   history.replaceState({ ddx: stack }, '', location.pathname + location.search + (stack.length ? '#' + stack[stack.length - 1] : ''))
 }
 
-const subscribe = (l: () => void) => {
+export const subscribe = (l: () => void) => {
   listeners.add(l)
-  return () => listeners.delete(l)
+  return () => void listeners.delete(l)
 }
+export const currentStack = () => stack
 export const useStack = () => useSyncExternalStore(subscribe, () => stack)
